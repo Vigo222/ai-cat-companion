@@ -23,9 +23,11 @@ export class RoomScene extends Phaser.Scene {
   private bubbleText!: Phaser.GameObjects.Text;
   private state: CatState = "idle";
   private busyChatting = false;
+  private hovered = false;
   private props: Prop[] = [];
   private stateTimer?: Phaser.Time.TimerEvent;
   private ambientTimer?: Phaser.Time.TimerEvent;
+  private walkTween?: Phaser.Tweens.Tween;
   private greeted = false;
   onCatClick: (() => void) | null = null;
 
@@ -39,9 +41,13 @@ export class RoomScene extends Phaser.Scene {
     this.createBubble();
 
     this.cat.setInteractive(
-      new Phaser.Geom.Rectangle(-55, -80, 110, 130),
+      new Phaser.Geom.Rectangle(-60, -90, 120, 150),
       Phaser.Geom.Rectangle.Contains,
     );
+    if (this.cat.input) this.cat.input.cursor = "pointer";
+    // 悬停时停下脚步，方便点击；移开后继续自主行动
+    this.cat.on("pointerover", () => this.setHovered(true));
+    this.cat.on("pointerout", () => this.setHovered(false));
     this.cat.on("pointerdown", () => this.onCatClick?.());
 
     this.scheduleNextState(2000);
@@ -57,9 +63,23 @@ export class RoomScene extends Phaser.Scene {
     this.busyChatting = v;
     if (v) {
       this.stateTimer?.remove();
+      this.walkTween?.stop();
       this.setState("idle");
     } else {
       this.scheduleNextState(4000);
+    }
+  }
+
+  private setHovered(v: boolean) {
+    if (this.hovered === v || this.busyChatting) return;
+    this.hovered = v;
+    if (v) {
+      this.stateTimer?.remove();
+      this.walkTween?.pause();
+      if (this.state === "walk") this.setState("idle");
+    } else {
+      if (this.walkTween?.isPlaying() === false) this.walkTween.resume();
+      this.scheduleNextState(Phaser.Math.Between(1500, 4000));
     }
   }
 
@@ -223,7 +243,7 @@ export class RoomScene extends Phaser.Scene {
   private scheduleNextState(delay: number) {
     this.stateTimer?.remove();
     this.stateTimer = this.time.delayedCall(delay, () => {
-      if (this.busyChatting) return;
+      if (this.busyChatting || this.hovered) return;
       const target = Phaser.Utils.Array.GetRandom(this.props);
       this.walkTo(target);
     });
@@ -234,7 +254,7 @@ export class RoomScene extends Phaser.Scene {
     const dist = Phaser.Math.Distance.Between(this.cat.x, this.cat.y, prop.x, prop.y);
     const flip = prop.x < this.cat.x ? -1 : 1;
     this.cat.scaleX = flip;
-    this.tweens.add({
+    this.walkTween = this.tweens.add({
       targets: this.cat,
       x: prop.x,
       y: prop.y,

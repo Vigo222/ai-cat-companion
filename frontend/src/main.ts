@@ -43,16 +43,25 @@ function setupChat(scene: RoomScene) {
   const panel = $("chatPanel");
   const log = $("chatLog");
   const input = $("chatInput") as HTMLInputElement;
+  const fab = $("chatFab");
 
-  scene.onCatClick = () => {
+  fab.style.display = "block";
+
+  const openChat = () => {
     panel.classList.add("open");
+    fab.style.display = "none";
     scene.setChatting(true);
     input.focus();
   };
-  $("chatClose").addEventListener("click", () => {
+  const closeChat = () => {
     panel.classList.remove("open");
+    fab.style.display = "block";
     scene.setChatting(false);
-  });
+  };
+
+  scene.onCatClick = openChat;
+  fab.addEventListener("click", openChat);
+  $("chatClose").addEventListener("click", closeChat);
 
   const addMsg = (cls: string, text: string) => {
     const d = document.createElement("div");
