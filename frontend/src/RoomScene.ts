@@ -233,7 +233,7 @@ export class RoomScene extends Phaser.Scene {
       .text(0, 0, "", {
         fontSize: "15px",
         color: "#5c4a3d",
-        wordWrap: { width: 250 },
+        wordWrap: { width: 250, useAdvancedWrap: true },
         align: "left",
         lineSpacing: 4,
       })
