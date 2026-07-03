@@ -5,8 +5,10 @@ export interface Session {
 
 export const session: Session = { code: "", player: "" };
 
+const API_BASE: string = import.meta.env.VITE_API_BASE ?? "";
+
 async function post<T>(path: string, body: object): Promise<T> {
-  const r = await fetch(path, {
+  const r = await fetch(API_BASE + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

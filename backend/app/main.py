@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
+from collections import defaultdict, deque  # noqa: E402
+
+from fastapi import FastAPI, HTTPException, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
@@ -82,6 +84,21 @@ def check(code):
         raise HTTPException(401, "口令不对喵")
 
 
+RATE_LIMIT_PER_MIN = int(os.environ.get("RATE_LIMIT_PER_MIN", "20"))
+_rate_buckets: dict[str, deque] = defaultdict(deque)
+
+
+def rate_limit(request: Request):
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    now = time.time()
+    bucket = _rate_buckets[ip]
+    while bucket and now - bucket[0] > 60:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_PER_MIN:
+        raise HTTPException(429, "说得太快了喵，歇一会儿再聊")
+    bucket.append(now)
+
+
 def fmt_memories(mems):
     if not mems:
         return "（暂无）"
@@ -113,8 +130,9 @@ async def login(req: LoginReq):
 
 
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatReq):
+async def chat_endpoint(req: ChatReq, request: Request):
     check(req.code)
+    rate_limit(request)
     db = memory.get_db()
     q_emb = (await aembed([req.text]))[0]
     mems = memory.recall(db, q_emb, k=8)
@@ -131,8 +149,9 @@ async def chat_endpoint(req: ChatReq):
 
 
 @app.post("/api/ambient")
-async def ambient(req: AmbientReq):
+async def ambient(req: AmbientReq, request: Request):
     check(req.code)
+    rate_limit(request)
     db = memory.get_db()
     if req.kind == "greeting":
         last_seen = memory.touch_player(db, req.player)
