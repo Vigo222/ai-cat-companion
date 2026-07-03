@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小凡的房间</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #2b2530; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
+    #game { display: flex; justify-content: center; align-items: center; height: 100vh; }
+
+    #login {
+      position: fixed; inset: 0; background: linear-gradient(160deg, #ffe9d6, #ffd6e0);
+      display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; z-index: 20;
+    }
+    #login h1 { color: #7a5c49; font-size: 32px; }
+    #login p { color: #a08573; }
+    #login input {
+      padding: 12px 18px; border: 2px solid #e8b89b; border-radius: 14px; font-size: 16px;
+      outline: none; width: 240px; text-align: center; background: #fffaf5;
+    }
+    .who { display: flex; gap: 16px; }
+    .who button {
+      padding: 12px 28px; border: none; border-radius: 14px; font-size: 17px; cursor: pointer;
+      background: #fff; color: #7a5c49; box-shadow: 0 3px 0 #e8b89b; transition: transform .1s;
+    }
+    .who button:hover { transform: translateY(-2px); }
+    .who button.sel { background: #ff9f7a; color: #fff; box-shadow: 0 3px 0 #d97c58; }
+    #enterBtn { padding: 12px 48px; border: none; border-radius: 16px; font-size: 18px; cursor: pointer;
+      background: #7ac9a2; color: #fff; box-shadow: 0 3px 0 #58a880; }
+    #loginErr { color: #d9534f; height: 20px; font-size: 14px; }
+
+    #chatPanel {
+      position: fixed; right: 16px; bottom: 16px; width: 340px; max-height: 70vh;
+      background: rgba(255, 250, 243, .97); border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.25);
+      display: none; flex-direction: column; z-index: 10; overflow: hidden;
+    }
+    #chatPanel.open { display: flex; }
+    #chatHeader { padding: 10px 16px; background: #ffb78f; color: #fff; font-weight: bold; display: flex; justify-content: space-between; }
+    #chatHeader span:last-child { cursor: pointer; }
+    #chatLog { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 160px; max-height: 46vh; }
+    .msg { max-width: 80%; padding: 8px 12px; border-radius: 14px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: #7ac9a2; color: #fff; border-bottom-right-radius: 4px; }
+    .msg.cat { align-self: flex-start; background: #fff; color: #5c4a3d; border: 1px solid #f0dcc8; border-bottom-left-radius: 4px; }
+    .msg.typing { color: #b09a88; font-style: italic; }
+    #chatInputRow { display: flex; padding: 10px; gap: 8px; border-top: 1px solid #f0dcc8; }
+    #chatInput { flex: 1; padding: 9px 12px; border: 1.5px solid #e8cdb2; border-radius: 12px; outline: none; font-size: 14px; background: #fff; }
+    #sendBtn { padding: 9px 16px; border: none; border-radius: 12px; background: #ff9f7a; color: #fff; cursor: pointer; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="login">
+    <h1>🐾 小凡的房间</h1>
+    <p>输入口令，选择你是谁</p>
+    <input id="codeInput" type="password" placeholder="口令" />
+    <div class="who">
+      <button data-who="凡">我是 凡</button>
+      <button data-who="汝道">我是 汝道</button>
+    </div>
+    <div id="loginErr"></div>
+    <button id="enterBtn">进入房间</button>
+  </div>
+
+  <div id="game"></div>
+
+  <div id="chatPanel">
+    <div id="chatHeader"><span>和小凡聊天</span><span id="chatClose">✕</span></div>
+    <div id="chatLog"></div>
+    <div id="chatInputRow">
+      <input id="chatInput" placeholder="说点什么…" />
+      <button id="sendBtn">发送</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
