@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 export interface Session {
   code: string;
   player: string;
