@@ -46,6 +46,13 @@
     #chatInputRow { display: flex; padding: 10px; gap: 8px; border-top: 1px solid #f0dcc8; }
     #chatInput { flex: 1; padding: 9px 12px; border: 1.5px solid #e8cdb2; border-radius: 12px; outline: none; font-size: 14px; background: #fff; }
     #sendBtn { padding: 9px 16px; border: none; border-radius: 12px; background: #ff9f7a; color: #fff; cursor: pointer; font-size: 14px; }
+
+    #chatFab {
+      position: fixed; right: 20px; bottom: 20px; z-index: 9; display: none;
+      padding: 12px 20px; border: none; border-radius: 24px; font-size: 15px; cursor: pointer;
+      background: #ff9f7a; color: #fff; box-shadow: 0 4px 14px rgba(217,124,88,.5);
+    }
+    #chatFab:hover { transform: translateY(-2px); }
   </style>
 </head>
 <body>
@@ -62,6 +69,8 @@
   </div>
 
   <div id="game"></div>
+
+  <button id="chatFab">🐾 找小凡聊天</button>
 
   <div id="chatPanel">
     <div id="chatHeader"><span>和小凡聊天</span><span id="chatClose">✕</span></div>
