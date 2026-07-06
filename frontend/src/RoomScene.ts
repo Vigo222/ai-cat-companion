@@ -54,8 +54,12 @@ export class RoomScene extends Phaser.Scene {
   private stateTimer?: Phaser.Time.TimerEvent;
   private ambientTimer?: Phaser.Time.TimerEvent;
   private walkTween?: Phaser.Tweens.Tween;
+  private lureToy?: Phaser.GameObjects.Container;
+  private snack?: Phaser.GameObjects.Container;
   private greeted = false;
   onCatClick: (() => void) | null = null;
+  onLureComplete: (() => void) | null = null;
+  onFeedComplete: (() => void) | null = null;
 
   constructor() {
     super("room");
@@ -91,6 +95,10 @@ export class RoomScene extends Phaser.Scene {
     this.cat.on("pointerover", () => this.setHovered(true));
     this.cat.on("pointerout", () => this.setHovered(false));
     this.cat.on("pointerdown", () => this.onCatClick?.());
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[]) => {
+      if (objects.includes(this.cat)) return;
+      this.lureTo(pointer.worldX, pointer.worldY);
+    });
 
     this.scheduleNextState(2500);
     this.ambientTimer = this.time.addEvent({
@@ -106,10 +114,43 @@ export class RoomScene extends Phaser.Scene {
     if (v) {
       this.stateTimer?.remove();
       this.walkTween?.stop();
+      this.lureToy?.destroy();
+      this.lureToy = undefined;
       this.setState("sit");
     } else {
       this.scheduleNextState(5000);
     }
+  }
+
+  lureTo(x: number, y: number) {
+    if (this.busyChatting) return;
+    const tx = Phaser.Math.Clamp(x, 95, W - 95);
+    const ty = Phaser.Math.Clamp(y, 430, H - 44);
+    this.showLureToy(tx, ty);
+    this.walkToPoint(tx, ty, () => {
+      this.setState("play");
+      this.currentActivity = "追着逗猫棒玩";
+      this.showBubble("逮到你啦～");
+      this.onLureComplete?.();
+      this.fadeAndDestroy(this.lureToy, 2200);
+      this.lureToy = undefined;
+    });
+  }
+
+  feedTreat() {
+    if (this.busyChatting) return;
+    const dir = this.cat.x < W / 2 ? 1 : -1;
+    const tx = Phaser.Math.Clamp(this.cat.x + dir * 115, 110, W - 110);
+    const ty = Phaser.Math.Clamp(this.cat.y + 28, 455, H - 50);
+    this.showSnack(tx, ty);
+    this.walkToPoint(tx, ty, () => {
+      this.setState("eat");
+      this.currentActivity = "吃小鱼干";
+      this.showBubble("啊呜，小鱼干好香！");
+      this.onFeedComplete?.();
+      this.fadeAndDestroy(this.snack, 2600);
+      this.snack = undefined;
+    });
   }
 
   private setHovered(v: boolean) {
@@ -229,6 +270,48 @@ export class RoomScene extends Phaser.Scene {
     this.cat.play(name, true);
   }
 
+  private showLureToy(x: number, y: number) {
+    this.lureToy?.destroy();
+    const g = this.add.graphics();
+    g.lineStyle(4, 0xb9895f, 0.95);
+    g.lineBetween(-24, -46, -2, -10);
+    g.lineStyle(2, 0xffd3de, 1);
+    g.lineBetween(-2, -10, 8, -3);
+    g.fillStyle(0xff7da8, 1);
+    g.fillEllipse(13, 0, 22, 10);
+    g.fillStyle(0xffd36b, 1);
+    g.fillEllipse(4, 8, 18, 9);
+    g.fillStyle(0x7ac9a2, 1);
+    g.fillCircle(0, 0, 4);
+    this.lureToy = this.add.container(x, y, [g]).setDepth(6);
+    this.tweens.add({ targets: this.lureToy, angle: 10, y: y - 6, yoyo: true, repeat: -1, duration: 420, ease: "sine.inout" });
+  }
+
+  private showSnack(x: number, y: number) {
+    this.snack?.destroy();
+    const g = this.add.graphics();
+    g.fillStyle(0xe59d45, 1);
+    g.fillEllipse(0, 0, 30, 13);
+    g.fillTriangle(-13, 0, -28, -9, -28, 9);
+    g.fillStyle(0xffd98f, 1);
+    g.fillCircle(7, -1, 3);
+    g.fillStyle(0x5c4a3d, 1);
+    g.fillCircle(10, -2, 1.5);
+    this.snack = this.add.container(x, y - 8, [g]).setDepth(4);
+    this.tweens.add({ targets: this.snack, y: y - 14, yoyo: true, repeat: -1, duration: 720, ease: "sine.inout" });
+  }
+
+  private fadeAndDestroy(item: Phaser.GameObjects.Container | undefined, delay: number) {
+    if (!item) return;
+    this.tweens.add({
+      targets: item,
+      alpha: 0,
+      duration: 500,
+      delay,
+      onComplete: () => item.destroy(),
+    });
+  }
+
   private createBubble() {
     const g = this.add.graphics();
     this.bubbleText = this.add
@@ -266,19 +349,27 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private walkTo(prop: Prop) {
+    this.walkToPoint(prop.x, prop.y, () => {
+      this.setState(prop.state);
+      this.currentActivity = prop.activity;
+    });
+  }
+
+  private walkToPoint(x: number, y: number, onArrive: () => void) {
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
     this.setState("walk");
-    const dist = Phaser.Math.Distance.Between(this.cat.x, this.cat.y, prop.x, prop.y);
-    this.cat.setFlipX(prop.x < this.cat.x); // walk 贴图朝右
+    const dist = Phaser.Math.Distance.Between(this.cat.x, this.cat.y, x, y);
+    this.cat.setFlipX(x < this.cat.x); // walk 贴图朝右
     this.walkTween = this.tweens.add({
       targets: [this.cat, this.shadow],
-      x: prop.x,
-      y: prop.y,
+      x,
+      y,
       duration: Math.max(900, dist * 11),
       ease: "sine.inout",
       onComplete: () => {
         this.cat.setFlipX(false);
-        this.setState(prop.state);
-        this.currentActivity = prop.activity;
+        onArrive();
         this.scheduleNextState(Phaser.Math.Between(10000, 22000));
       },
     });
