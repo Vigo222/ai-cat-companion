@@ -18,13 +18,13 @@ function barColor(ratio: number) {
   return ratio > 0.6 ? "shenglan" : ratio > 0.3 ? "huangse" : "hongse";
 }
 
-function qqBar(color: string, ratio: number) {
+function qqBar(color: string, ratio: number, valueText: string) {
   const pct = Math.max(0, Math.min(100, ratio * 100));
-  return `<div class="qqbar"><div class="fill" style="width:${pct}%">
-    <span class="l" style="background-image:url(/qqpet/state/${color}jindutiao00.png)"></span>
-    <span class="m" style="background-image:url(/qqpet/state/${color}jindutiao01.png)"></span>
-    <span class="r" style="background-image:url(/qqpet/state/${color}jindutiao02.png)"></span>
-  </div></div>`;
+  return `<div class="valueLine"><div class="background_line" style="width:${pct}%">
+    <div class="b_left" style="background-image:url(/qqpet/state/${color}jindutiao00.png)"></div>
+    <div class="b_center"><div class="b_c_back" style="background-image:url(/qqpet/state/${color}jindutiao01.png)"></div></div>
+    <div class="b_right" style="background-image:url(/qqpet/state/${color}jindutiao02.png)"></div>
+  </div><div class="v_l_value">${valueText}</div></div>`;
 }
 
 function levelBones(level: number) {
@@ -47,48 +47,71 @@ function renderStatePanel() {
   const growSpan = Math.max(1, pet.next_growth - pet.up_growth);
   const growRatio = (pet.growth - pet.up_growth) / growSpan;
   const rows = [
-    { lbl: "饥饿", v: pet.hunger, max: pet.max_hunger },
-    { lbl: "清洁", v: pet.clean, max: pet.max_clean },
-    { lbl: "心情", v: pet.mood, max: pet.max_mood },
-    { lbl: "健康", v: pet.health, max: pet.max_health },
+    { lbl: "饥饿：", v: pet.hunger, max: pet.max_hunger },
+    { lbl: "清洁：", v: pet.clean, max: pet.max_clean },
+    { lbl: "健康：", v: pet.health, max: pet.max_health },
+    { lbl: "心情：", v: pet.mood, max: pet.max_mood },
   ];
   const stateText = pet.dead
-    ? `<span class="deadTag">☠ 已死亡（需还魂丹复活）</span>`
+    ? `<span class="spDead">死亡了~（需还魂丹复活）</span>`
     : pet.illness
-      ? `<span class="sick">🤒 生病：${pet.illness}</span>`
-      : `<span class="fine">成长中～</span>`;
+      ? `<span class="spSick">生病了~（${pet.illness}）</span>`
+      : `成长中~`;
   $("statePanel").innerHTML = `
-    <div class="head"><span>冯二喵</span><img id="spClose" src="/qqpet/state/close_normal.png" alt="关闭"
-      onmouseover="this.src='/qqpet/state/close_over.png'" onmouseout="this.src='/qqpet/state/close_normal.png'" /></div>
-    <div class="body">
-      <div class="spRow"><span class="lbl">等级：</span><span class="bones">${levelBones(pet.level)}</span>
-        <span class="val">${pet.level}级</span></div>
-      <div class="spRow"><span class="lbl">年龄：</span><span class="val">${pet.age_hours}小时</span></div>
-      <div class="spRow"><span class="lbl">成长：</span>${qqBar("luse", growRatio)}
-        <span class="num">${Math.round(pet.growth)}/${pet.next_growth}</span></div>
-      ${rows.map((r) => `<div class="spRow"><span class="lbl">${r.lbl}：</span>${qqBar(barColor(r.v / r.max), r.v / r.max)}
-        <span class="num">${Math.round(r.v)} / ${r.max}</span></div>`).join("")}
-      <div class="spRow"><span class="lbl">速度：</span><span class="val">成长 ${pet.growth_rate}/小时</span></div>
-      <div class="spRow"><span class="lbl">元宝：</span><span class="val">🪙 ${pet.yb}</span></div>
-      <div id="spIllness">${stateText}</div>
+    <div id="spBg">
+      <div class="bgRow bh"><div class="l"></div><div class="c"></div><div class="r"></div></div>
+      <div class="bgRow bm"><div class="l"></div><div class="c"></div><div class="r"></div></div>
+      <div class="bgRow bf"><div class="l"></div><div class="c"></div><div class="r"></div></div>
+    </div>
+    <div id="spContent">
+      <div class="head"><div class="petFile" title="宠物资料"></div><div id="spClose" title="关闭"></div></div>
+      <div class="main">
+        <div class="onceInfo"><div class="label">昵称：</div><div class="value">冯二喵</div></div>
+        <div class="onceInfo"><div class="label">等级：</div><div class="value">${pet.level}</div>
+          <div class="bones">${levelBones(pet.level)}</div></div>
+        <div class="onceInfo"><div class="label">年龄：</div><div class="value">${pet.age_hours}小时</div></div>
+      </div>
+      <div class="onceInfo onceInfoLine"><div class="label">成长：</div>
+        ${qqBar("luse", growRatio, `${Math.round(pet.growth - pet.up_growth)} / ${growSpan}`)}</div>
+      ${rows.map((r) => `<div class="onceInfo onceInfoLine"><div class="label">${r.lbl}</div>
+        ${qqBar(barColor(r.v / r.max), r.v / r.max, `${Math.round(r.v)} / ${r.max}`)}</div>`).join("")}
+      <div class="onceInfo onceInfoLine"><div class="label">成长速度：</div><div class="value">${pet.growth_rate}/小时</div></div>
+      <div class="onceInfo onceInfoLine"><div class="label">元宝：</div><div class="value">${pet.yb}</div></div>
+      <div class="onceInfo onceInfoLine"><div class="label">状态：</div><div class="value">${stateText}</div></div>
+      <div class="foot">
+        <div class="sweetHeart" style="background-image:url(/qqpet/state/h_down.png)"></div>
+      </div>
     </div>`;
   $("spClose").addEventListener("click", () => $("statePanel").classList.remove("show"));
 }
 
-// ===== 点猫环绕图标菜单（7 可用 + 打工/学习/旅游置灰占位）=====
+// ===== 原版 control 工具栏菜单：顶级圆形图标 + 悬停展开二级子菜单 =====
 
-interface MenuItem { key: string; label: string; icon: string; disabled?: boolean }
-const MENU: MenuItem[] = [
-  { key: "feed", label: "喂养", icon: "weishi" },
-  { key: "clean", label: "清洁", icon: "qingjie" },
-  { key: "play", label: "玩耍", icon: "wanshua" },
-  { key: "cure", label: "治病", icon: "zhibing" },
-  { key: "shop", label: "商城", icon: "cf" },
-  { key: "bag", label: "背包", icon: "guanli" },
-  { key: "state", label: "状态", icon: "chongwu" },
-  { key: "work", label: "打工", icon: "dagong", disabled: true },
-  { key: "study", label: "学习", icon: "xuexi", disabled: true },
-  { key: "trip", label: "旅游", icon: "lvyou", disabled: true },
+interface MenuChild { key: string; name: string; icon: string; disabled?: boolean }
+interface MenuGroup { name: string; icon: string; children: MenuChild[] }
+const MENU: MenuGroup[] = [
+  {
+    name: "日常", icon: "richang", children: [
+      { key: "feed", name: "食物", icon: "weishi" },
+      { key: "clean", name: "清洁", icon: "qingjie" },
+      { key: "cure", name: "吃药", icon: "zhibing" },
+      { key: "play", name: "玩耍", icon: "wanshua" },
+    ],
+  },
+  {
+    name: "交互", icon: "chongwu", children: [
+      { key: "work", name: "打工", icon: "dagong", disabled: true },
+      { key: "study", name: "学习", icon: "xuexi", disabled: true },
+      { key: "trip", name: "旅游", icon: "lvyou", disabled: true },
+    ],
+  },
+  {
+    name: "活动", icon: "gonggao", children: [
+      { key: "shop", name: "商城", icon: "cf" },
+      { key: "bag", name: "背包", icon: "guanli" },
+      { key: "state", name: "状态", icon: "chongwu" },
+    ],
+  },
 ];
 
 function setupPetMenu(scene: RoomScene) {
@@ -103,25 +126,40 @@ function setupPetMenu(scene: RoomScene) {
     const sx = rect.left + (cx / W) * rect.width;
     const sy = rect.top + (cy / H) * rect.height;
     menu.innerHTML = "";
-    menu.style.left = "0";
-    menu.style.top = "0";
-    const r = 96;
-    MENU.forEach((m, i) => {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / MENU.length;
-      const el = document.createElement("div");
-      el.className = "pmItem" + (m.disabled ? " disabled" : "");
-      el.style.left = `${sx + r * Math.cos(a)}px`;
-      el.style.top = `${sy + r * Math.sin(a)}px`;
-      el.innerHTML = `<div class="ic"><img src="/qqpet/icons/${m.icon}.png" alt="" /></div><div class="lb">${m.label}</div>`;
-      el.addEventListener("pointerdown", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        if (m.disabled) { scene.showBubble("这个功能还没开放喵～"); return; }
-        closeMenu();
-        doMenuAction(scene, m.key);
+    MENU.forEach((g) => {
+      const head = document.createElement("div");
+      head.className = "m_head";
+      head.innerHTML = `
+        <div class="m_h_name">${g.name}</div>
+        <div class="m_h_i_back">
+          <img class="m_h_i_bk_6" src="/qqpet/control/bk/6.svg" alt="" />
+          <img class="m_h_img" src="/qqpet/control/${g.icon}.png" alt="" />
+        </div>
+        <div class="m_children">${g.children.map((c) => `
+          <div class="m_c_once normal${c.disabled ? " disabledItem" : ""}" data-key="${c.key}">
+            <div class="m_c_o_bk">
+              <div class="m_c_o_b_point"></div>
+              <div class="m_c_o_b_round"><img src="/qqpet/control/${c.icon}.png" alt="" /></div>
+              <div class="m_c_o_b_piece">${c.name}</div>
+            </div>
+          </div>`).join("")}
+        </div>`;
+      head.querySelectorAll<HTMLElement>(".m_c_once").forEach((el) => {
+        const key = el.dataset.key!;
+        const child = g.children.find((c) => c.key === key)!;
+        el.addEventListener("pointerdown", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          if (child.disabled) { scene.showBubble("这个功能还没开放喵～"); return; }
+          closeMenu();
+          doMenuAction(scene, key);
+        });
       });
-      menu.appendChild(el);
+      menu.appendChild(head);
     });
+    const menuW = MENU.length * 50 + (MENU.length - 1) * 20;
+    menu.style.left = `${Math.max(10, Math.min(window.innerWidth - menuW - 10, sx - menuW / 2))}px`;
+    menu.style.top = `${Math.max(30, sy - 90)}px`;
     menu.classList.add("show");
   };
   document.addEventListener("pointerdown", (e) => {

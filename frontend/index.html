@@ -68,61 +68,130 @@
       100% { opacity: 0; transform: translate(-50%, -56px); }
     }
 
-    /* ===== QQ宠物经典状态面板 ===== */
+    /* ===== 原版宠物状态小窗（stateInfo：ditu 九宫格卡片 + 半透明渐变面板）===== */
     #statePanel {
-      position: fixed; right: 18px; top: 18px; width: 208px; z-index: 12; display: none;
-      background: #fdf6e3; border: 2px solid #b98a52; border-radius: 10px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.35); color: #6b4b2a; font-size: 12px;
-      user-select: none;
+      position: fixed; right: 18px; top: 18px; width: 245px; z-index: 12; display: none;
+      color: #042b4b; font-size: 12px; font-weight: 500; line-height: 20px; user-select: none;
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,.35));
     }
     #statePanel.show { display: block; }
-    #statePanel .head {
-      height: 26px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 8px; border-radius: 7px 7px 0 0; color: #fff; font-weight: bold; font-size: 13px;
-      background: linear-gradient(#f7b733, #e08e1b); text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    #spBg { position: absolute; inset: 0; display: flex; flex-direction: column; z-index: 0; }
+    #spBg .bgRow { display: flex; }
+    #spBg .bh { height: 101px; }
+    #spBg .bh .l { width: 42px; background: url("/qqpet/state/ditu01.png") no-repeat; }
+    #spBg .bh .c { flex: 1; background: url("/qqpet/state/ditu02.png") repeat-x; }
+    #spBg .bh .r { width: 83px; background: url("/qqpet/state/ditu03.png") no-repeat; }
+    #spBg .bm { flex: 1; }
+    #spBg .bm .l { width: 32px; background: url("/qqpet/state/ditu04.png") repeat-y; }
+    #spBg .bm .c { flex: 1; background: url("/qqpet/state/ditu05.png") repeat; }
+    #spBg .bm .r { width: 32px; background: url("/qqpet/state/ditu06.png") repeat-y; }
+    #spBg .bf { height: 85px; }
+    #spBg .bf .l { width: 32px; background: url("/qqpet/state/ditu07.png") no-repeat; }
+    #spBg .bf .c { flex: 1; background: url("/qqpet/state/ditu08.png") repeat-x; }
+    #spBg .bf .r { width: 32px; background: url("/qqpet/state/ditu09.png") no-repeat; }
+    #spContent {
+      position: relative; z-index: 1; margin: 10px 12px 14px; display: flex; flex-direction: column;
+      background: linear-gradient(to top, rgba(237, 247, 255, 0.8), rgba(253, 255, 255, 0.8));
+      border-radius: 6px;
     }
-    #statePanel .head img { width: 16px; height: 16px; cursor: pointer; }
-    #statePanel .body { padding: 8px 10px 10px; }
-    .spRow { display: flex; align-items: center; margin-top: 5px; gap: 4px; }
-    .spRow .lbl { width: 40px; flex: none; }
-    .spRow .val { margin-left: auto; color: #8a6a42; }
-    .bones { display: flex; gap: 1px; align-items: center; }
-    .bones img { width: 12px; height: 12px; }
-    .qqbar {
-      position: relative; flex: 1; height: 14px; border-radius: 7px;
-      background: #e7d9bc; box-shadow: inset 0 1px 2px rgba(0,0,0,.25); overflow: hidden;
+    #spContent .head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 3px 5px 0px; border-bottom: 1px dotted rgba(0, 0, 0, 0.5);
     }
-    .qqbar .fill { position: absolute; left: 0; top: 0; bottom: 0; display: flex; min-width: 8px; transition: width .3s; }
-    .qqbar .fill .l, .qqbar .fill .r { flex: none; width: 5px; background-size: 100% 100%; }
-    .qqbar .fill .m { flex: 1; background-repeat: repeat-x; background-size: auto 100%; }
-    .spRow .num { width: 74px; flex: none; text-align: right; color: #8a6a42; font-size: 11px; }
-    #spIllness { margin-top: 7px; padding-top: 6px; border-top: 1px dashed #d8b98a; display: flex; gap: 6px; align-items: center; }
-    #spIllness .sick { color: #d9534f; font-weight: bold; }
-    #spIllness .fine { color: #58a880; }
-    #spIllness .deadTag { color: #444; font-weight: bold; }
+    .petFile {
+      height: 23px; width: 70px; cursor: pointer;
+      background: url("/qqpet/state/00.png") no-repeat; background-size: 100% 100%;
+    }
+    .petFile:hover { background-image: url("/qqpet/state/01.png"); position: relative; top: 1px; }
+    .petFile:active { background-image: url("/qqpet/state/02.png"); position: relative; top: 1px; }
+    #spClose {
+      height: 17px; width: 17px; cursor: pointer; position: relative; top: -3px;
+      background: url("/qqpet/state/close_normal.png") no-repeat; background-size: 100% 100%;
+    }
+    #spClose:hover { background-image: url("/qqpet/state/close_click.png"); top: -2px; }
+    #spClose:active { background-image: url("/qqpet/state/close_over.png"); top: 1px; }
+    #spContent .main { flex: 1; padding: 0 8px; }
+    .onceInfo { width: 100%; display: flex; align-items: center; }
+    .onceInfoLine { padding: 0 8px; }
+    .onceInfo .label { flex: none; }
+    .onceInfo .value { color: #042b4b; }
+    .bones { display: flex; align-items: center; margin-left: 5px; height: 100%; }
+    .bones img { width: 8px; }
+    .valueLine { flex: 1; position: relative; height: 14px; display: flex; align-items: center; }
+    .background_line { display: flex; height: 12px; min-width: 10px; transition: width .3s; }
+    .background_line .b_left, .background_line .b_right { flex: none; width: 5px; background-size: 100% 100%; background-repeat: no-repeat; }
+    .background_line .b_center { flex: 1; overflow: hidden; }
+    .background_line .b_c_back { width: 100%; height: 100%; background-repeat: repeat-x; background-size: auto 100%; }
+    .v_l_value { position: absolute; right: 0; top: -3px; font-size: 12px; color: #042b4b; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+    #spContent .foot {
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px dotted rgba(0, 0, 0, 0.5); padding: 5px 8px 4px;
+    }
+    .sweetHeart { height: 20px; width: 65px; background-repeat: no-repeat; background-size: contain; }
+    .spSick { color: #d9534f; font-weight: bold; }
+    .spDead { color: #444; font-weight: bold; }
 
-    /* ===== 点猫环绕功能菜单 ===== */
-    #petMenu { position: fixed; z-index: 14; display: none; }
-    #petMenu.show { display: block; }
-    .pmItem {
-      position: absolute; width: 48px; height: 60px; margin: -30px 0 0 -24px;
-      display: flex; flex-direction: column; align-items: center; cursor: pointer;
+    /* ===== 原版 control 工具栏菜单（圆形图标 + 悬停展开二级子菜单）===== */
+    #petMenu {
+      --iconSize: 40px; --iconBoxSize: 50px; --childWidth: 110px; --childheight: 30px;
+      --childheightIn: 5px; --transTime: 0.3s;
+      position: fixed; z-index: 14; display: none; gap: 20px; font-size: 12px;
     }
-    .pmItem .ic {
-      width: 42px; height: 42px; border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, #ffe9a8, #ffc93d 60%, #e8a01f);
-      border: 2px solid #b9873d; box-shadow: 0 3px 6px rgba(0,0,0,.35);
-      display: flex; align-items: center; justify-content: center; transition: transform .1s;
+    #petMenu.show { display: flex; }
+    .m_head {
+      position: relative; border-radius: 50%; width: var(--iconBoxSize); height: var(--iconBoxSize);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
-    .pmItem .ic img { width: 24px; height: 24px; }
-    .pmItem:hover .ic { transform: scale(1.15); }
-    .pmItem .lb {
-      margin-top: 2px; font-size: 11px; color: #fff; background: rgba(90, 60, 20, .8);
-      padding: 1px 6px; border-radius: 8px; white-space: nowrap;
+    .m_h_name {
+      position: absolute; top: -2px; left: 50%; padding: 2px 5px;
+      background: url("/qqpet/control/bk/12.svg") no-repeat; background-size: 100% 100%;
+      color: #fff; transform: translateY(-100%) translateX(-50%); text-align: center;
+      white-space: nowrap; border-radius: 10px; display: none; font-size: 10px;
     }
-    .pmItem.disabled { cursor: not-allowed; }
-    .pmItem.disabled .ic { filter: grayscale(1); opacity: .55; }
-    .pmItem.disabled:hover .ic { transform: none; }
+    .m_head:hover .m_h_name { display: inline-block; }
+    .m_h_i_back {
+      width: var(--iconSize); height: var(--iconSize); overflow: hidden; transition: all var(--transTime);
+      position: relative; display: flex; align-items: center; justify-content: center;
+    }
+    .m_head:hover .m_h_i_back { width: var(--iconBoxSize); height: var(--iconBoxSize); }
+    .m_h_i_bk_6 { width: 100%; height: 100%; opacity: 0; transition: all var(--transTime); position: absolute; left: 0; top: 0; }
+    .m_head:hover .m_h_i_bk_6 { opacity: 1; }
+    .m_h_img {
+      width: var(--iconSize); height: var(--iconSize); border-radius: 50%; position: relative;
+      background-image: url("/qqpet/control/bk/2.svg"); transition: all var(--transTime);
+      background-size: 100% 100%; background-repeat: no-repeat;
+    }
+    .m_head:hover .m_h_img { transform: rotate(45deg); background-image: url("/qqpet/control/bk/8.svg"); }
+    .m_children {
+      max-height: 0px; overflow: hidden; width: var(--childWidth); position: absolute;
+      left: 0; top: var(--iconBoxSize); transition: all var(--transTime);
+    }
+    .m_head:hover .m_children { max-height: 240px; }
+    .m_c_once { white-space: nowrap; width: var(--childWidth); height: var(--childheight); position: relative; padding: 12px 0; box-sizing: content-box; }
+    .m_c_once.normal::before {
+      content: ""; display: inline-block; position: absolute; left: 0; top: calc(-50% + 2.5px);
+      height: 100%; width: 1px; background-color: #826b54;
+    }
+    .m_c_o_bk {
+      width: var(--childWidth); height: calc(var(--childheight) - var(--childheightIn));
+      padding-left: 5px; position: relative; display: flex; align-items: center; cursor: pointer;
+    }
+    .m_c_o_bk:hover .m_c_o_b_point, .m_c_o_bk:hover .m_c_o_b_round { background-color: #5a4a3a; }
+    .m_c_o_b_point { background-color: #826b54; width: 5px; height: 5px; border-radius: 50%; margin-left: 5px; flex: none; }
+    .m_c_o_b_round {
+      background-color: #826b54; height: calc(var(--childheight) - var(--childheightIn));
+      width: calc(var(--childheight) - var(--childheightIn)); border-radius: 50%; margin-left: 5px; z-index: 2; flex: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .m_c_o_b_round img { width: 72%; height: 72%; border-radius: 50%; }
+    .m_c_o_b_piece {
+      background-color: rgba(95, 76, 57, 0.5); height: calc(var(--childheight) - var(--childheightIn));
+      position: relative; left: calc(var(--childheight) - var(--childheight) * 1.5);
+      padding: 3px 5px; padding-left: calc(var(--childheight) / 2); border-radius: calc(var(--childheight) / 2);
+      color: #fff; z-index: 1; box-sizing: border-box; display: flex; align-items: center;
+    }
+    .m_c_once.disabledItem .m_c_o_b_round, .m_c_once.disabledItem .m_c_o_b_point { opacity: .45; }
+    .m_c_once.disabledItem .m_c_o_b_piece { opacity: .55; }
 
     /* ===== 原版商城窗口 ===== */
     #shopWin {

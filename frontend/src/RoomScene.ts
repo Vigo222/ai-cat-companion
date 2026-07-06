@@ -71,6 +71,7 @@ export class RoomScene extends Phaser.Scene {
 
   preload() {
     this.load.image("room_bg", "assets/room_bg.png");
+    this.load.svg("bone_tip", "qqpet/tip/14.svg", { width: 458, height: 358 });
     for (const [name, a] of Object.entries(ANIMS)) {
       this.load.spritesheet(`cat_${name}`, `assets/cat_${name}_sheet.png`, {
         frameWidth: a.frameWidth,
@@ -269,29 +270,13 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private redrawCloud() {
+    // 原版骨头形提示框（tip/normal/14.svg）：文字居中显示在骨头中段
     const b = this.bubbleText.getBounds();
-    const w = Math.max(70, b.width + 40);
-    const h = Math.max(46, b.height + 30);
-    const g = this.bubble.getAt(0) as Phaser.GameObjects.Graphics;
-    g.clear();
-    g.fillStyle(0xfffdf7, 0.96);
-    g.lineStyle(2.5, 0xd9bda0, 1);
-    // 云朵：主体圆角矩形 + 上下边缘一圈鼓包
-    const r = h / 2;
-    g.fillRoundedRect(-w / 2, -h, w, h, r);
-    g.strokeRoundedRect(-w / 2, -h, w, h, r);
-    const bumps = Math.max(3, Math.floor(w / 34));
-    for (let k = 0; k < bumps; k++) {
-      const bx = -w / 2 + (w / (bumps - 1 || 1)) * k;
-      g.fillCircle(bx, -h, 10 + (k % 2) * 4);
-      g.fillCircle(bx, 0, 9 + ((k + 1) % 2) * 4);
-    }
-    g.lineStyle(0, 0, 0);
-    // 尾巴小圆圈
-    g.fillStyle(0xfffdf7, 0.95);
-    g.fillCircle(-6, 14, 7);
-    g.fillCircle(4, 26, 4.5);
-    this.bubbleText.setPosition(0, -h / 2);
+    const img = this.bubble.getAt(0) as Phaser.GameObjects.Image;
+    const w = Math.max(170, b.width + 110);
+    const h = Math.max(120, b.height + 96);
+    img.setDisplaySize(w, h).setPosition(0, -h / 2);
+    this.bubbleText.setPosition(0, -h / 2 - 4);
   }
 
   private createDust() {
@@ -374,10 +359,10 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private createBubble() {
-    const g = this.add.graphics();
+    const g = this.add.image(0, 0, "bone_tip");
     this.bubbleText = this.add
       .text(0, 0, "", {
-        fontSize: "15px",
+        fontSize: "14px",
         color: "#5c4a3d",
         wordWrap: { width: 250, useAdvancedWrap: true },
         align: "left",
