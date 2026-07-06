@@ -40,45 +40,74 @@ function startGame() {
 }
 
 function setupChat(scene: RoomScene) {
-  const panel = $("chatPanel");
-  const log = $("chatLog");
   const input = $("chatInput") as HTMLInputElement;
+  const sendBtn = $("sendBtn") as HTMLButtonElement;
+  const floatMsg = $("floatMsg");
+
+  $("chatBar").classList.add("show");
 
   scene.onCatClick = () => {
-    panel.classList.add("open");
-    scene.setChatting(true);
+    scene.showBubble("喵？");
     input.focus();
   };
-  $("chatClose").addEventListener("click", () => {
-    panel.classList.remove("open");
-    scene.setChatting(false);
-  });
 
-  const addMsg = (cls: string, text: string) => {
-    const d = document.createElement("div");
-    d.className = `msg ${cls}`;
-    d.textContent = text;
-    log.appendChild(d);
-    log.scrollTop = log.scrollHeight;
-    return d;
+  // 玩家的话从输入条上方飘起
+  const flyUserMsg = (text: string) => {
+    floatMsg.textContent = text;
+    floatMsg.classList.remove("fly");
+    void floatMsg.offsetWidth; // 重置动画
+    floatMsg.classList.add("fly");
   };
 
+  // 长回复按句子切成多段云朵气泡，逐段打字机展示
+  const speakReply = (reply: string) => {
+    const chunks: string[] = [];
+    let cur = "";
+    for (const part of reply.split(/(?<=[。！？!?～~\n])/)) {
+      if (cur && cur.length + part.length > 54) {
+        chunks.push(cur.trim());
+        cur = part;
+      } else {
+        cur += part;
+      }
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+
+    let delay = 0;
+    chunks.forEach((c, idx) => {
+      window.setTimeout(() => {
+        const dur = scene.showBubble(c);
+        if (idx === chunks.length - 1) {
+          window.setTimeout(() => scene.setChatting(false), dur);
+        }
+      }, delay);
+      delay += Math.min(14000, 3000 + c.length * 150) + 250;
+    });
+  };
+
+  let sending = false;
   const send = async () => {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || sending) return;
+    sending = true;
+    sendBtn.disabled = true;
     input.value = "";
-    addMsg("user", text);
-    const typing = addMsg("cat typing", "小凡正在打字…");
+    flyUserMsg(text);
+    scene.setChatting(true);
+    scene.showBubble("……", true);
     try {
       const r = await chat(text);
-      typing.remove();
-      addMsg("cat", r.reply);
-      scene.showBubble(r.reply.length > 40 ? r.reply.slice(0, 40) + "…" : r.reply);
+      speakReply(r.reply);
     } catch {
-      typing.textContent = "（小凡走神了，再试一次）";
+      const dur = scene.showBubble("（小凡走神了，再说一次喵）");
+      window.setTimeout(() => scene.setChatting(false), dur);
+    } finally {
+      sending = false;
+      sendBtn.disabled = false;
+      input.focus();
     }
   };
-  $("sendBtn").addEventListener("click", send);
+  sendBtn.addEventListener("click", send);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") send();
   });
