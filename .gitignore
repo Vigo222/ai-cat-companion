@@ -1,5 +1,7 @@
 .env
-data/
+# 仅忽略原始聊天记录与日志；生成的派生数据（persona/sessions/memories.db）入库以便复用
+data/chatlog.jsonl
+data/*.log
 __pycache__/
 *.pyc
 node_modules/
