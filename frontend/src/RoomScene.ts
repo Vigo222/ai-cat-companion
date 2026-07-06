@@ -14,19 +14,33 @@ interface Prop {
 
 type CatState = "idle" | "walk" | "sleep" | "play" | "sit" | "eat";
 
-const STATE_TEXTURE: Record<CatState, string> = {
-  idle: "cat_sit",
-  sit: "cat_sit",
-  eat: "cat_sit",
-  walk: "cat_walk",
-  sleep: "cat_sleep",
-  play: "cat_play",
+interface AnimSpec {
+  frames: number;
+  frameWidth: number;
+  frameHeight: number;
+  fps: number;
+  scale: number;
+}
+
+const ANIMS: Record<string, AnimSpec> = {
+  walk: { frames: 23, frameWidth: 421, frameHeight: 340, fps: 12, scale: 0.4791 },
+  sleep: { frames: 11, frameWidth: 519, frameHeight: 340, fps: 3, scale: 0.3768 },
+  sit: { frames: 22, frameWidth: 272, frameHeight: 340, fps: 6, scale: 0.6088 },
+  groom: { frames: 21, frameWidth: 235, frameHeight: 340, fps: 12, scale: 0.5921 },
+  play: { frames: 24, frameWidth: 304, frameHeight: 340, fps: 12, scale: 0.6344 },
 };
 
-const CAT_SCALE = 0.3;
+const STATE_ANIM: Record<CatState, string> = {
+  idle: "sit",
+  sit: "sit",
+  eat: "groom",
+  walk: "walk",
+  sleep: "sleep",
+  play: "play",
+};
 
 export class RoomScene extends Phaser.Scene {
-  private cat!: Phaser.GameObjects.Image;
+  private cat!: Phaser.GameObjects.Sprite;
   private shadow!: Phaser.GameObjects.Ellipse;
   private zzz!: Phaser.GameObjects.Text;
   private bubble!: Phaser.GameObjects.Container;
@@ -40,7 +54,6 @@ export class RoomScene extends Phaser.Scene {
   private stateTimer?: Phaser.Time.TimerEvent;
   private ambientTimer?: Phaser.Time.TimerEvent;
   private walkTween?: Phaser.Tweens.Tween;
-  private breathTween?: Phaser.Tweens.Tween;
   private greeted = false;
   onCatClick: (() => void) | null = null;
 
@@ -50,14 +63,23 @@ export class RoomScene extends Phaser.Scene {
 
   preload() {
     this.load.image("room_bg", "assets/room_bg.png");
-    this.load.image("cat_sit", "assets/cat_sit.png");
-    this.load.image("cat_sit_blink", "assets/cat_sit_blink.png");
-    this.load.image("cat_walk", "assets/cat_walk.png");
-    this.load.image("cat_sleep", "assets/cat_sleep.png");
-    this.load.image("cat_play", "assets/cat_play.png");
+    for (const [name, a] of Object.entries(ANIMS)) {
+      this.load.spritesheet(`cat_${name}`, `assets/cat_${name}_sheet.png`, {
+        frameWidth: a.frameWidth,
+        frameHeight: a.frameHeight,
+      });
+    }
   }
 
   create() {
+    for (const [name, a] of Object.entries(ANIMS)) {
+      this.anims.create({
+        key: name,
+        frames: this.anims.generateFrameNumbers(`cat_${name}`, { start: 0, end: a.frames - 1 }),
+        frameRate: a.fps,
+        repeat: -1,
+      });
+    }
     this.add.image(W / 2, H / 2, "room_bg").setDisplaySize(W, H);
     this.createDust();
     this.createCat();
@@ -75,11 +97,6 @@ export class RoomScene extends Phaser.Scene {
       delay: Phaser.Math.Between(15000, 28000),
       loop: true,
       callback: () => this.doAmbient(),
-    });
-    this.time.addEvent({
-      delay: Phaser.Math.Between(2800, 4600),
-      loop: true,
-      callback: () => this.blink(),
     });
     this.time.delayedCall(1200, () => this.doGreeting());
   }
@@ -197,34 +214,19 @@ export class RoomScene extends Phaser.Scene {
 
   private createCat() {
     this.shadow = this.add.ellipse(430, 470, 120, 26, 0x8a6a4c, 0.25);
-    this.cat = this.add.image(430, 470, "cat_sit").setScale(CAT_SCALE).setOrigin(0.5, 0.88);
+    this.cat = this.add.sprite(430, 470, "cat_sit").setOrigin(0.5, 0.97);
+    this.applyAnim("sit");
     this.zzz = this.add
       .text(0, 0, "z Z z", { fontSize: "20px", color: "#8fa8c9", fontStyle: "bold" })
       .setVisible(false)
       .setDepth(4);
-    this.startBreathing();
   }
 
-  private startBreathing() {
-    this.breathTween?.stop();
-    this.breathTween = this.tweens.add({
-      targets: this.cat,
-      scaleY: { from: CAT_SCALE, to: CAT_SCALE * 1.035 },
-      duration: this.state === "sleep" ? 1600 : 950,
-      yoyo: true,
-      repeat: -1,
-      ease: "sine.inout",
-    });
-  }
-
-  private blink() {
-    if (this.state !== "sit" && this.state !== "idle" && this.state !== "eat") return;
-    this.cat.setTexture("cat_sit_blink");
-    this.time.delayedCall(160, () => {
-      if (this.state === "sit" || this.state === "idle" || this.state === "eat") {
-        this.cat.setTexture("cat_sit");
-      }
-    });
+  private applyAnim(name: string) {
+    const flip = this.cat.flipX;
+    this.cat.setScale(ANIMS[name].scale);
+    this.cat.setFlipX(flip);
+    this.cat.play(name, true);
   }
 
   private createBubble() {
@@ -286,10 +288,9 @@ export class RoomScene extends Phaser.Scene {
 
   private setState(s: CatState) {
     this.state = s;
-    this.cat.setTexture(STATE_TEXTURE[s]);
+    this.applyAnim(STATE_ANIM[s]);
     this.zzz.setVisible(s === "sleep");
     if (s === "walk") this.currentActivity = "在房间里踱步";
-    this.startBreathing();
   }
 
   private async doAmbient() {
