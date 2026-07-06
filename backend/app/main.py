@@ -164,6 +164,43 @@ async def pet_care(req: PetCareReq):
     return state
 
 
+@app.post("/api/pet/work")
+async def pet_work(req: PetItemReq):
+    check(req.code)
+    db = memory.get_db()
+    state, err = memory.start_work(db, req.item)
+    db.close()
+    if err:
+        raise HTTPException(400, err)
+    return state
+
+
+@app.post("/api/pet/study")
+async def pet_study(req: PetItemReq):
+    check(req.code)
+    db = memory.get_db()
+    state, err = memory.start_study(db, req.item)
+    db.close()
+    if err:
+        raise HTTPException(400, err)
+    return state
+
+
+@app.post("/api/pet/activity/cancel")
+async def pet_activity_cancel(req: PetStateReq):
+    check(req.code)
+    db = memory.get_db()
+    state = memory.cancel_activity(db)
+    db.close()
+    return state
+
+
+@app.post("/api/pet/jobs")
+async def pet_jobs(req: PetStateReq):
+    check(req.code)
+    return {"work": list(memory.WORK.values()), "study": list(memory.STUDY.values())}
+
+
 @app.post("/api/pet/shop")
 async def pet_shop(req: PetStateReq):
     check(req.code)

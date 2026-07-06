@@ -59,7 +59,52 @@ export interface PetState {
   cure: string | null;
   dead: boolean;
   yb: number;
+  charm: number;
+  intel: number;
+  strong: number;
+  study: Record<string, number>;
+  activity: PetActivity | null;
   inventory: Record<string, number>;
+}
+
+export interface PetActivity {
+  type: "work" | "study";
+  id: string;
+  name: string;
+  end: number;
+  remain: number;
+  total: number;
+}
+
+export interface WorkJob {
+  id: string;
+  name: string;
+  charm: number;
+  intel: number;
+  strong: number;
+  clean: number;
+  starve: number;
+  mood: number;
+  yb: number;
+  use_time: number;
+  need: number;
+  education: Record<string, number>;
+}
+
+export interface StudyCourse {
+  id: string;
+  object: string;
+  subject: string;
+  school: string;
+  class_num_up: number;
+  class_num: number;
+  class_time: number;
+  tolk_name: string;
+  charm: number;
+  intel: number;
+  strong: number;
+  starve: number;
+  clean: number;
 }
 
 export interface ShopItem {
@@ -91,4 +136,20 @@ export function petBuy(item: string) {
 
 export function petUse(item: string) {
   return post<PetState>("/api/pet/use", { code: session.code, item });
+}
+
+export function petJobs() {
+  return post<{ work: WorkJob[]; study: StudyCourse[] }>("/api/pet/jobs", { code: session.code });
+}
+
+export function petWork(item: string) {
+  return post<PetState>("/api/pet/work", { code: session.code, item });
+}
+
+export function petStudy(item: string) {
+  return post<PetState>("/api/pet/study", { code: session.code, item });
+}
+
+export function petActivityCancel() {
+  return post<PetState>("/api/pet/activity/cancel", { code: session.code });
 }

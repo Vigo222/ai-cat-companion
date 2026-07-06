@@ -49,6 +49,7 @@ export class RoomScene extends Phaser.Scene {
   private typeTimer?: Phaser.Time.TimerEvent;
   private state: CatState = "sit";
   private busyChatting = false;
+  private busyActivity = false;
   private hovered = false;
   private props: Prop[] = [];
   private stateTimer?: Phaser.Time.TimerEvent;
@@ -130,9 +131,26 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
+  /** 打工/上课中：停止自主行动，坐下干活/听课 */
+  setActivityMode(label: string | null) {
+    if (this.busyActivity === !!label) {
+      if (label) this.currentActivity = label;
+      return;
+    }
+    this.busyActivity = !!label;
+    if (label) {
+      this.stateTimer?.remove();
+      this.walkTween?.stop();
+      this.setState("sit");
+      this.currentActivity = label;
+    } else {
+      this.scheduleNextState(3000);
+    }
+  }
+
   /** 环绕菜单里的「玩耍」：逗猫反应 */
   playWithCat() {
-    if (this.busyChatting || this.dead) return;
+    if (this.busyChatting || this.busyActivity || this.dead) return;
     if (this.time.now - this.lastPetAt < 1500) return;
     this.lastPetAt = this.time.now;
     this.stateTimer?.remove();
@@ -168,7 +186,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   lureTo(x: number, y: number) {
-    if (this.busyChatting || this.dead) return;
+    if (this.busyChatting || this.busyActivity || this.dead) return;
     const tx = Phaser.Math.Clamp(x, 95, W - 95);
     const ty = Phaser.Math.Clamp(y, 430, H - 44);
     this.showLureToy(tx, ty);
@@ -183,7 +201,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   feedTreat(item = "小鱼干") {
-    if (this.busyChatting || this.dead) return;
+    if (this.busyChatting || this.busyActivity || this.dead) return;
     const dir = this.cat.x < W / 2 ? 1 : -1;
     const tx = Phaser.Math.Clamp(this.cat.x + dir * 115, 110, W - 110);
     const ty = Phaser.Math.Clamp(this.cat.y + 28, 455, H - 50);
@@ -216,7 +234,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private setHovered(v: boolean) {
-    if (this.hovered === v || this.busyChatting || this.dead) return;
+    if (this.hovered === v || this.busyChatting || this.busyActivity || this.dead) return;
     this.hovered = v;
     if (v) {
       this.stateTimer?.remove();
@@ -388,7 +406,7 @@ export class RoomScene extends Phaser.Scene {
   private scheduleNextState(delay: number) {
     this.stateTimer?.remove();
     this.stateTimer = this.time.delayedCall(delay, () => {
-      if (this.busyChatting || this.hovered || this.dead) return;
+      if (this.busyChatting || this.busyActivity || this.hovered || this.dead) return;
       // 心情低落时更想窝着/发呆
       const props = this.mood < 30
         ? this.roomProps().filter((p) => p.state === "sleep" || p.state === "idle" || p.state === "sit")

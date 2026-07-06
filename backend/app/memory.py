@@ -44,6 +44,13 @@ CREATE TABLE IF NOT EXISTS pet_state (
     yb INTEGER NOT NULL,
     born INTEGER NOT NULL DEFAULT 0,
     last_bonus INTEGER NOT NULL DEFAULT 0,
+    charm REAL NOT NULL DEFAULT 0,
+    intel REAL NOT NULL DEFAULT 0,
+    strong REAL NOT NULL DEFAULT 0,
+    act_type TEXT,
+    act_id TEXT,
+    act_end INTEGER NOT NULL DEFAULT 0,
+    study TEXT NOT NULL DEFAULT '{}',
     updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS inventory (
@@ -54,6 +61,7 @@ CREATE TABLE IF NOT EXISTS inventory (
 
 # ==== QQ宠物养成机制（数值/物品/疾病链均取自原版 v1.2.4 逆向数据）====
 
+from .qqpet_activities import STUDY, WORK  # noqa: E402
 from .qqpet_catalog import CATALOG  # noqa: E402
 
 SHOP = {it["id"]: it for it in CATALOG}
@@ -128,7 +136,23 @@ def _clamp(v, hi):
     return max(0.0, min(float(hi), v))
 
 
-PET_COLS = "hunger, clean, mood, growth, illness, ill_since, dead, yb, born, last_bonus, updated_at"
+PET_COLS = (
+    "hunger, clean, mood, growth, illness, ill_since, dead, yb, born, last_bonus, "
+    "charm, intel, strong, act_type, act_id, act_end, study, updated_at"
+)
+
+# 学历阶段（原版 Goods.js getStudyLevel）：课时数 -> 阶段
+SCHOOL_STAGES = [("xx", "小学", 9), ("zx", "中学", 20), ("dx", "大学", 40), ("yjs", "研究生", 10 ** 9)]
+EDU_LABELS = {9: "小学", 20: "中学", 40: "大学"}
+SUBJECT_NAMES = {s["subject"]: s["object"] for s in STUDY.values()}
+
+
+def study_stage(hours):
+    """根据某科目已学课时返回 (阶段key, 阶段名)。"""
+    for key, name, up in SCHOOL_STAGES:
+        if hours < up:
+            return key, name
+    return "yjs", "研究生"
 
 
 def _pet_row(db, now):
@@ -144,7 +168,7 @@ def _pet_row(db, now):
             "INSERT OR IGNORE INTO inventory (item, count) VALUES (?,?)", list(STARTER_ITEMS.items())
         )
         db.commit()
-        return (d["hunger"], d["clean"], d["mood"], 0.0, None, 0, 0, d["yb"], now, 0, now)
+        return (d["hunger"], d["clean"], d["mood"], 0.0, None, 0, 0, d["yb"], now, 0, 0.0, 0.0, 0.0, None, None, 0, "{}", now)
     return row
 
 
@@ -152,7 +176,20 @@ def get_inventory(db):
     return {item: count for item, count in db.execute("SELECT item, count FROM inventory WHERE count > 0")}
 
 
-def _pet_dict(db, hunger, clean, mood, growth, illness, dead, yb, born, now):
+def _activity_dict(act_type, act_id, act_end, now):
+    if not act_type:
+        return None
+    spec = (WORK if act_type == "work" else STUDY).get(act_id)
+    if spec is None:
+        return None
+    name = spec["name"] if act_type == "work" else spec["tolk_name"]
+    total = (spec["use_time"] if act_type == "work" else spec["class_time"]) * 60
+    return {"type": act_type, "id": act_id, "name": name, "end": act_end,
+            "remain": max(0, act_end - now), "total": total}
+
+
+def _pet_dict(db, hunger, clean, mood, growth, illness, dead, yb, born,
+              charm, intel, strong, act_type, act_id, act_end, study, now):
     level, up_growth, next_growth = get_level(growth)
     max_hc = get_max_hunger_clean(level)
     if dead:
@@ -180,6 +217,11 @@ def _pet_dict(db, hunger, clean, mood, growth, illness, dead, yb, born, now):
         "cure": ILLNESS_CHAINS[illness]["cure"] if illness else (REVIVE_ID if dead else None),
         "dead": bool(dead),
         "yb": yb,
+        "charm": int(charm),
+        "intel": int(intel),
+        "strong": int(strong),
+        "study": study,
+        "activity": _activity_dict(act_type, act_id, act_end, now),
         "inventory": get_inventory(db),
     }
 
@@ -187,8 +229,29 @@ def _pet_dict(db, hunger, clean, mood, growth, illness, dead, yb, born, now):
 def get_pet_state(db, now=None):
     """读取宠物状态：离线衰减 + 成长积累 + 饿/脏诱发疾病 + 疾病恶化链 + 死亡（原版机制）。"""
     now = int(now or time.time())
-    hunger, clean, mood, growth, illness, ill_since, dead, yb, born, last_bonus, updated_at = _pet_row(db, now)
+    (hunger, clean, mood, growth, illness, ill_since, dead, yb, born, last_bonus,
+     charm, intel, strong, act_type, act_id, act_end, study_json, updated_at) = _pet_row(db, now)
+    study = json.loads(study_json or "{}")
     hours = max(0.0, (now - updated_at) / 3600.0)
+    # 打工/学习到点结算（原版：消耗饱食/清洁，获得元宝/属性/课时）
+    if act_type and not dead and now >= act_end:
+        spec = (WORK if act_type == "work" else STUDY).get(act_id)
+        if spec:
+            hunger = max(0.0, hunger - spec["starve"])
+            clean = max(0.0, clean - spec["clean"])
+            charm += spec["charm"]
+            intel += spec["intel"]
+            strong += spec["strong"]
+            if act_type == "work":
+                yb += spec["yb"]
+                db.execute("UPDATE pet_state SET yb=? WHERE id=1", (yb,))
+            else:
+                study[spec["subject"]] = study.get(spec["subject"], 0) + 1
+        act_type, act_id, act_end = None, None, 0
+        db.execute(
+            "UPDATE pet_state SET charm=?, intel=?, strong=?, act_type=NULL, act_id=NULL, act_end=0, study=? WHERE id=1",
+            (charm, intel, strong, json.dumps(study, ensure_ascii=False)),
+        )
     if not dead:
         level, _, _ = get_level(growth)
         max_hc = get_max_hunger_clean(level)
@@ -212,7 +275,8 @@ def get_pet_state(db, now=None):
         (hunger, clean, mood, growth, illness, ill_since, dead, now),
     )
     db.commit()
-    return _pet_dict(db, hunger, clean, mood, growth, illness, dead, yb, born, now)
+    return _pet_dict(db, hunger, clean, mood, growth, illness, dead, yb, born,
+                     charm, intel, strong, act_type, act_id, act_end, study, now)
 
 
 def grant_login_bonus(db):
@@ -240,6 +304,74 @@ def care_pet(db, action):
     db.commit()
     state["mood"] = round(mood, 1)
     return state
+
+
+def _edu_unmet(study, education):
+    """返回未达标的学历要求描述列表，如「小学语文毕业」。"""
+    unmet = []
+    for subject, hours_req in education.items():
+        if study.get(subject, 0) < hours_req:
+            unmet.append(f"{EDU_LABELS.get(hours_req, str(hours_req) + '课时')}{SUBJECT_NAMES.get(subject, subject)}毕业")
+    return unmet
+
+
+def start_work(db, job_id):
+    """开始打工（原版：耗时 use_time 分钟，到点结算元宝/属性并扣饱食清洁）。返回 (state, error)。"""
+    spec = WORK.get(job_id)
+    if spec is None:
+        return None, "没有这份工作喵"
+    state = get_pet_state(db)
+    if state["dead"]:
+        return None, "宠物已经死亡，不能打工……"
+    if state["activity"]:
+        return None, f"正在{state['activity']['name']}中，忙不过来喵"
+    if state["level"] < spec["need"]:
+        return None, f"等级不够，{spec['name']}需要 {spec['need']} 级"
+    unmet = _edu_unmet(state["study"], spec["education"])
+    if unmet:
+        return None, "学历不够，需要：" + "、".join(unmet)
+    if state["hunger"] < spec["starve"]:
+        return None, "太饿了，先吃点东西再去打工吧"
+    if state["clean"] < spec["clean"]:
+        return None, "太脏了，先洗个澡再去打工吧"
+    now = int(time.time())
+    db.execute(
+        "UPDATE pet_state SET act_type='work', act_id=?, act_end=? WHERE id=1",
+        (job_id, now + spec["use_time"] * 60),
+    )
+    db.commit()
+    return get_pet_state(db), None
+
+
+def start_study(db, subject):
+    """开始上课（按科目当前学历阶段自动选课）。返回 (state, error)。"""
+    state = get_pet_state(db)
+    if state["dead"]:
+        return None, "宠物已经死亡，不能上课……"
+    if state["activity"]:
+        return None, f"正在{state['activity']['name']}中，忙不过来喵"
+    stage_key, _ = study_stage(state["study"].get(subject, 0))
+    spec = STUDY.get(f"{stage_key}-{subject}")
+    if spec is None:
+        return None, "没有这门课程喵"
+    if state["hunger"] < spec["starve"]:
+        return None, "太饿了，先吃点东西再去上课吧"
+    if state["clean"] < spec["clean"]:
+        return None, "太脏了，先洗个澡再去上课吧"
+    now = int(time.time())
+    db.execute(
+        "UPDATE pet_state SET act_type='study', act_id=?, act_end=? WHERE id=1",
+        (spec["id"], now + spec["class_time"] * 60),
+    )
+    db.commit()
+    return get_pet_state(db), None
+
+
+def cancel_activity(db):
+    """中途放弃打工/上课（无奖励无消耗）。"""
+    db.execute("UPDATE pet_state SET act_type=NULL, act_id=NULL, act_end=0 WHERE id=1")
+    db.commit()
+    return get_pet_state(db)
 
 
 def buy_item(db, item):
@@ -306,7 +438,18 @@ def get_db():
     cols = {r[1] for r in db.execute("PRAGMA table_info(pet_state)")}
     if cols and "growth" not in cols:  # 旧版（0~100 刻度）存档：重置为原版刻度
         db.executescript("DROP TABLE pet_state; DROP TABLE IF EXISTS inventory;")
+        cols = set()
     db.executescript(SCHEMA)
+    if cols and "act_type" not in cols:  # 老存档：补打工/学习相关列
+        db.executescript(
+            "ALTER TABLE pet_state ADD COLUMN charm REAL NOT NULL DEFAULT 0;"
+            "ALTER TABLE pet_state ADD COLUMN intel REAL NOT NULL DEFAULT 0;"
+            "ALTER TABLE pet_state ADD COLUMN strong REAL NOT NULL DEFAULT 0;"
+            "ALTER TABLE pet_state ADD COLUMN act_type TEXT;"
+            "ALTER TABLE pet_state ADD COLUMN act_id TEXT;"
+            "ALTER TABLE pet_state ADD COLUMN act_end INTEGER NOT NULL DEFAULT 0;"
+            "ALTER TABLE pet_state ADD COLUMN study TEXT NOT NULL DEFAULT '{}';"
+        )
     return db
 
 

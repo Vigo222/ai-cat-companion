@@ -298,6 +298,50 @@
     }
     #bagUseBtn:disabled { opacity: .5; cursor: default; }
     .bagEmpty { grid-column: 1 / -1; text-align: center; color: #b09468; padding: 30px 0; font-size: 12px; }
+
+    /* ===== 打工/学习窗口 ===== */
+    #jobWin {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 15; display: none;
+      width: 470px; background: #fdf6e3; border: 3px solid #b98a52; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.5); color: #6b4b2a;
+    }
+    #jobWin.show { display: block; }
+    #jobWin .head {
+      height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+      background: linear-gradient(#f7b733, #e08e1b); border-radius: 8px 8px 0 0;
+      color: #fff; font-weight: bold; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+    #jobWin .head .hicon { width: 20px; height: 20px; vertical-align: -4px; margin-right: 6px; }
+    #jobWin .head > img { width: 18px; height: 18px; cursor: pointer; }
+    #jobList { max-height: 420px; overflow-y: auto; padding: 10px 12px 12px; }
+    #jobList::-webkit-scrollbar { width: 8px; }
+    #jobList::-webkit-scrollbar-thumb { background: #a0824f; border-radius: 4px; }
+    .jobRow {
+      position: relative; background: #fff3d8; border: 1px solid #d0ac74; border-radius: 8px;
+      padding: 8px 86px 8px 12px; margin-bottom: 8px;
+    }
+    .jobRow.nope { opacity: .62; }
+    .jobRow .jn { font-size: 14px; font-weight: bold; color: #5c3a12; }
+    .jobRow .jd, .jobRow .jr { font-size: 11px; color: #8a6a42; margin-top: 2px; }
+    .jobRow button {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      padding: 6px 16px; border: none; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
+      color: #fff; background: linear-gradient(#ffb648, #ef8f1d); box-shadow: 0 2px 0 #b96a10;
+    }
+    .jobRow button:disabled { opacity: .5; cursor: default; }
+
+    /* 活动进行中 HUD（原版 active 徽标动画 + 倒计时 + 返回按钮） */
+    #actHud {
+      position: fixed; left: 18px; top: 18px; z-index: 13; display: none; align-items: center; gap: 8px;
+      padding: 8px 12px; background: rgba(253, 246, 227, .95); border: 2px solid #b98a52; border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.35); color: #6b4b2a;
+    }
+    #actHud.show { display: flex; }
+    #actHud #actBadge { width: 34px; height: 34px; }
+    #actHud .actInfo { display: flex; flex-direction: column; }
+    #actHud #actName { font-size: 13px; font-weight: bold; }
+    #actHud #actTime { font-size: 12px; color: #b3541e; font-weight: bold; font-variant-numeric: tabular-nums; }
+    #actHud #actCancel { width: 30px; height: 30px; cursor: pointer; margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -320,6 +364,8 @@
   <div id="petMenu"></div>
   <div id="shopWin"></div>
   <div id="bagWin"></div>
+  <div id="jobWin"></div>
+  <div id="actHud"></div>
   <div id="chatBar">
     <input id="chatInput" placeholder="和冯二喵说点什么…" />
     <button id="sendBtn">🐾 发送</button>

@@ -1,5 +1,5 @@
-import { chat, login, petBuy, petCare, petShop, petState, petUse, session } from "./api";
-import type { PetState, ShopItem } from "./api";
+import { chat, login, petActivityCancel, petBuy, petCare, petJobs, petShop, petState, petStudy, petUse, petWork, session } from "./api";
+import type { PetState, ShopItem, StudyCourse, WorkJob } from "./api";
 import { createGame, RoomScene, W, H } from "./RoomScene";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -77,6 +77,7 @@ function renderStatePanel() {
         ${qqBar(barColor(r.v / r.max), r.v / r.max, `${Math.round(r.v)} / ${r.max}`)}</div>`).join("")}
       <div class="onceInfo onceInfoLine"><div class="label">成长速度：</div><div class="value">${pet.growth_rate}/小时</div></div>
       <div class="onceInfo onceInfoLine"><div class="label">元宝：</div><div class="value">${pet.yb}</div></div>
+      <div class="onceInfo onceInfoLine"><div class="label">属性：</div><div class="value">魅力${pet.charm} 智力${pet.intel} 武力${pet.strong}</div></div>
       <div class="onceInfo onceInfoLine"><div class="label">状态：</div><div class="value">${stateText}</div></div>
       <div class="foot">
         <div class="sweetHeart" style="background-image:url(/qqpet/state/h_down.png)"></div>
@@ -100,8 +101,8 @@ const MENU: MenuGroup[] = [
   },
   {
     name: "交互", icon: "chongwu", children: [
-      { key: "work", name: "打工", icon: "dagong", disabled: true },
-      { key: "study", name: "学习", icon: "xuexi", disabled: true },
+      { key: "work", name: "打工", icon: "dagong" },
+      { key: "study", name: "学习", icon: "xuexi" },
       { key: "trip", name: "旅游", icon: "lvyou", disabled: true },
     ],
   },
@@ -179,9 +180,172 @@ function doMenuAction(scene: RoomScene, key: string) {
     case "play":
       scene.playWithCat();
       break;
+    case "work": openJobWin(scene, "work"); break;
+    case "study": openJobWin(scene, "study"); break;
     case "shop": openShop(scene); break;
     case "bag": openBag(scene, bagTab); break;
     case "state": $("statePanel").classList.toggle("show"); break;
+  }
+}
+
+// ===== 打工/学习（原版 shop.js work/study 数据 + active 徽标动画）=====
+
+let workJobs: WorkJob[] = [];
+let studyCourses: StudyCourse[] = [];
+let jobKind: "work" | "study" = "work";
+
+// 原版 Goods.js getStudyLevel：课时数 -> 学历阶段
+const STAGES: [string, string, number][] = [["xx", "小学", 9], ["zx", "中学", 20], ["dx", "大学", 40], ["yjs", "研究生", 1e9]];
+const stageOf = (hours: number) => STAGES.find(([, , up]) => hours < up) ?? STAGES[3];
+const EDU_LABEL: Record<number, string> = { 9: "小学", 20: "中学", 40: "大学" };
+const SUBJECT_NAME = () => Object.fromEntries(studyCourses.map((c) => [c.subject, c.object]));
+
+function attrText(o: { charm: number; intel: number; strong: number }) {
+  const parts: string[] = [];
+  if (o.charm) parts.push(`魅力+${o.charm}`);
+  if (o.intel) parts.push(`智力+${o.intel}`);
+  if (o.strong) parts.push(`武力+${o.strong}`);
+  return parts.join(" ");
+}
+
+function jobRequireText(j: WorkJob) {
+  const names = SUBJECT_NAME();
+  const parts: string[] = [];
+  if (j.need > 0) parts.push(`${j.need}级`);
+  for (const [subj, req] of Object.entries(j.education)) {
+    parts.push(`${EDU_LABEL[req] ?? req + "课时"}${names[subj] ?? subj}毕业`);
+  }
+  return parts.length ? parts.join("、") : "无要求";
+}
+
+function jobMeetable(j: WorkJob) {
+  if (!pet) return false;
+  if (pet.level < j.need) return false;
+  for (const [subj, req] of Object.entries(j.education)) {
+    if ((pet.study[subj] ?? 0) < req) return false;
+  }
+  return pet.hunger >= j.starve && pet.clean >= j.clean;
+}
+
+function renderJobWin(scene: RoomScene) {
+  const win = $("jobWin");
+  const isWork = jobKind === "work";
+  const rows = isWork
+    ? workJobs.map((j) => {
+      const ok = jobMeetable(j);
+      return `<div class="jobRow${ok ? "" : " nope"}" data-id="${j.id}">
+        <div class="jn">${j.name}</div>
+        <div class="jd">报酬 ${j.yb} 元宝　耗时 ${j.use_time} 分钟　消耗：饱食${j.starve} 清洁${j.clean}${attrText(j) ? "　" + attrText(j) : ""}</div>
+        <div class="jr">要求：${jobRequireText(j)}</div>
+        <button data-go="${j.id}" ${ok ? "" : "disabled"}>开工</button>
+      </div>`;
+    })
+    : [...new Map(studyCourses.map((c) => [c.subject, c])).values()].map((c) => {
+      const hours = pet?.study[c.subject] ?? 0;
+      const [stageKey, stageName, up] = stageOf(hours);
+      const cur = studyCourses.find((s) => s.id === `${stageKey}-${c.subject}`)!;
+      const ok = !!pet && pet.hunger >= cur.starve && pet.clean >= cur.clean;
+      return `<div class="jobRow${ok ? "" : " nope"}" data-id="${c.subject}">
+        <div class="jn">${c.object}（${stageName}）</div>
+        <div class="jd">已修 ${hours} 课时，再修 ${Math.max(0, up === 1e9 ? 0 : up - hours)} 课时升学　每节 ${cur.class_time} 分钟</div>
+        <div class="jr">消耗：饱食${cur.starve} 清洁${cur.clean}${attrText(cur) ? "　收获：" + attrText(cur) : ""}</div>
+        <button data-go="${c.subject}" ${ok ? "" : "disabled"}>上课</button>
+      </div>`;
+    });
+  win.innerHTML = `
+    <div class="head">
+      <span><img class="hicon" src="/qqpet/active/${isWork ? "dagong" : "xuexi"}00.png" alt="" />${isWork ? "打工" : "学习"}</span>
+      <img id="jobClose" src="/qqpet/state/close_normal.png" alt="关闭"
+        onmouseover="this.src='/qqpet/state/close_over.png'" onmouseout="this.src='/qqpet/state/close_normal.png'" />
+    </div>
+    <div id="jobList">${rows.join("") || `<div class="bagEmpty">暂无可选项目</div>`}</div>`;
+  $("jobClose").addEventListener("click", () => win.classList.remove("show"));
+  win.querySelectorAll<HTMLButtonElement>("[data-go]").forEach((btn) =>
+    btn.addEventListener("click", () => void startActivity(scene, btn.dataset.go!)));
+}
+
+async function startActivity(scene: RoomScene, id: string) {
+  try {
+    pet = jobKind === "work" ? await petWork(id) : await petStudy(id);
+    $("jobWin").classList.remove("show");
+    scene.showBubble(jobKind === "work" ? "开工啦，好好干活挣元宝！" : "上课去啦，好好学习天天向上！");
+  } catch (e) {
+    scene.showBubble((e as Error).message);
+  }
+  renderAll(scene);
+}
+
+async function openJobWin(scene: RoomScene, kind: "work" | "study") {
+  if (pet?.activity) {
+    scene.showBubble(`正在${pet.activity.name}中，忙完再说喵～`);
+    return;
+  }
+  jobKind = kind;
+  if (workJobs.length === 0) {
+    try {
+      const r = await petJobs();
+      workJobs = r.work;
+      studyCourses = r.study;
+    } catch (e) {
+      scene.showBubble((e as Error).message);
+      return;
+    }
+  }
+  renderJobWin(scene);
+  $("jobWin").classList.add("show");
+}
+
+// 活动进行中 HUD：原版 active 徽标逐帧动画 + 倒计时 + 返回（放弃）
+let hudFrame = 0;
+let hudTimer: number | undefined;
+
+function fmtRemain(s: number) {
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+}
+
+function updateActHud(scene: RoomScene) {
+  const hud = $("actHud");
+  const act = pet?.activity ?? null;
+  if (!act) {
+    hud.classList.remove("show");
+    scene.setActivityMode(null);
+    if (hudTimer !== undefined) { window.clearInterval(hudTimer); hudTimer = undefined; }
+    return;
+  }
+  scene.setActivityMode(act.type === "work" ? `在${act.name}打工` : `上${act.name}课`);
+  const kindImg = act.type === "work" ? "dagong" : "xuexi";
+  if (!hud.classList.contains("show")) {
+    hud.innerHTML = `
+      <img id="actBadge" src="/qqpet/active/${kindImg}00.png" alt="" />
+      <div class="actInfo"><div id="actName">${act.name}中</div><div id="actTime"></div></div>
+      <img id="actCancel" src="/qqpet/active/fanhui00.png" title="放弃（无奖励）" alt="放弃"
+        onmouseover="this.src='/qqpet/active/fanhui01.png'" onmouseout="this.src='/qqpet/active/fanhui00.png'" />`;
+    $("actCancel").addEventListener("click", () => {
+      void petActivityCancel().then((s) => {
+        pet = s;
+        scene.showBubble("不干啦，回家！（本次没有奖励）");
+        renderAll(scene);
+      });
+    });
+    hud.classList.add("show");
+  }
+  if (hudTimer === undefined) {
+    const end = act.end;
+    hudTimer = window.setInterval(() => {
+      const remain = end - Math.floor(Date.now() / 1000);
+      if (remain <= 0) {
+        window.clearInterval(hudTimer);
+        hudTimer = undefined;
+        const doneMsg = act.type === "work"
+          ? `${act.name}干完啦，领到工钱回家喽～`
+          : `${act.name}下课啦，又学到了新东西～`;
+        void refreshPet(scene).then(() => scene.showBubble(doneMsg));
+        return;
+      }
+      $("actTime").textContent = fmtRemain(remain);
+      hudFrame = (hudFrame + 1) % 4;
+      ($("actBadge") as HTMLImageElement).src = `/qqpet/active/${kindImg}0${hudFrame}.png`;
+    }, 1000);
   }
 }
 
@@ -326,8 +490,10 @@ function renderAll(scene: RoomScene) {
   scene.mood = pet.mood;
   scene.setDead(pet.dead);
   renderStatePanel();
+  updateActHud(scene);
   if ($("shopWin").classList.contains("show")) renderShop(scene);
   if ($("bagWin").classList.contains("show")) renderBag(scene);
+  if ($("jobWin").classList.contains("show")) renderJobWin(scene);
 }
 
 async function refreshPet(scene: RoomScene) {
