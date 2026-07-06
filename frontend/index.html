@@ -8,6 +8,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #2b2530; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
     #game { display: flex; justify-content: center; align-items: center; height: 100vh; }
+    button { font-family: inherit; }
 
     #login {
       position: fixed; inset: 0; background: linear-gradient(160deg, #ffe9d6, #ffd6e0);
@@ -50,55 +51,6 @@
     }
     #sendBtn:hover { transform: translateY(-2px); }
     #sendBtn:disabled { opacity: .6; cursor: default; transform: none; }
-    #actionBar {
-      position: fixed; right: 26px; bottom: 92px; display: none; flex-direction: column; gap: 10px; z-index: 10;
-      align-items: flex-end;
-    }
-    #actionBar.show { display: flex; }
-    #petStats {
-      width: 208px; padding: 12px 14px; border-radius: 20px;
-      background: rgba(255, 253, 247, .9); color: #7a5c49; box-shadow: 0 4px 14px rgba(122, 92, 73, .22);
-      backdrop-filter: blur(6px); font-size: 13px;
-    }
-    .stat { display: grid; grid-template-columns: 42px 1fr 34px; align-items: center; gap: 7px; }
-    .stat + .stat { margin-top: 8px; }
-    .statTrack { height: 9px; border-radius: 99px; background: rgba(217, 189, 160, .35); overflow: hidden; }
-    .statFill { height: 100%; width: 50%; border-radius: inherit; transition: width .25s ease; }
-    #hungerFill { background: linear-gradient(90deg, #ffbf6b, #ff8f70); }
-    #cleanFill { background: linear-gradient(90deg, #9fd8ff, #6db2f0); }
-    #moodFill { background: linear-gradient(90deg, #7ac9a2, #8fb7ff); }
-    #petMeta { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
-    #ybValue { color: #d99a2b; font-weight: bold; }
-    #illnessTag { color: #d9534f; font-weight: bold; }
-    .barBtn {
-      padding: 12px 18px; border: none; border-radius: 22px; cursor: pointer; font-size: 15px;
-      background: rgba(255, 253, 247, .94); color: #7a5c49; box-shadow: 0 4px 14px rgba(122, 92, 73, .25);
-      transition: transform .1s, background .15s;
-    }
-    .barBtn:hover { transform: translateY(-2px); background: #fff6df; }
-    .barBtn:disabled { opacity: .65; cursor: default; transform: none; }
-    .panel {
-      position: fixed; right: 26px; bottom: 92px; width: 250px; max-height: 60vh; overflow-y: auto;
-      padding: 14px; border-radius: 20px; z-index: 11; display: none;
-      background: rgba(255, 253, 247, .96); color: #7a5c49; box-shadow: 0 6px 22px rgba(122, 92, 73, .3);
-      backdrop-filter: blur(6px); font-size: 13px;
-    }
-    .panel.show { display: block; }
-    .panel h3 { font-size: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; }
-    .panel h3 .close { cursor: pointer; color: #c4ab93; }
-    .itemRow {
-      display: flex; justify-content: space-between; align-items: center; gap: 8px;
-      padding: 7px 6px; border-radius: 10px;
-    }
-    .itemRow:hover { background: rgba(255, 214, 224, .35); }
-    .itemRow .info { flex: 1; }
-    .itemRow .info small { color: #b39a82; display: block; }
-    .itemRow button {
-      padding: 5px 12px; border: none; border-radius: 12px; cursor: pointer; font-size: 12px;
-      background: #ffb78f; color: #fff;
-    }
-    .itemRow button:disabled { opacity: .5; cursor: default; }
-    .empty { color: #b39a82; text-align: center; padding: 12px 0; }
 
     /* 玩家说的话：从输入条上方飘起并淡出 */
     #floatMsg {
@@ -115,6 +67,168 @@
       75% { opacity: 1; transform: translate(-50%, -34px); }
       100% { opacity: 0; transform: translate(-50%, -56px); }
     }
+
+    /* ===== QQ宠物经典状态面板 ===== */
+    #statePanel {
+      position: fixed; right: 18px; top: 18px; width: 208px; z-index: 12; display: none;
+      background: #fdf6e3; border: 2px solid #b98a52; border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35); color: #6b4b2a; font-size: 12px;
+      user-select: none;
+    }
+    #statePanel.show { display: block; }
+    #statePanel .head {
+      height: 26px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 8px; border-radius: 7px 7px 0 0; color: #fff; font-weight: bold; font-size: 13px;
+      background: linear-gradient(#f7b733, #e08e1b); text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    }
+    #statePanel .head img { width: 16px; height: 16px; cursor: pointer; }
+    #statePanel .body { padding: 8px 10px 10px; }
+    .spRow { display: flex; align-items: center; margin-top: 5px; gap: 4px; }
+    .spRow .lbl { width: 40px; flex: none; }
+    .spRow .val { margin-left: auto; color: #8a6a42; }
+    .bones { display: flex; gap: 1px; align-items: center; }
+    .bones img { width: 12px; height: 12px; }
+    .qqbar {
+      position: relative; flex: 1; height: 14px; border-radius: 7px;
+      background: #e7d9bc; box-shadow: inset 0 1px 2px rgba(0,0,0,.25); overflow: hidden;
+    }
+    .qqbar .fill { position: absolute; left: 0; top: 0; bottom: 0; display: flex; min-width: 8px; transition: width .3s; }
+    .qqbar .fill .l, .qqbar .fill .r { flex: none; width: 5px; background-size: 100% 100%; }
+    .qqbar .fill .m { flex: 1; background-repeat: repeat-x; background-size: auto 100%; }
+    .spRow .num { width: 74px; flex: none; text-align: right; color: #8a6a42; font-size: 11px; }
+    #spIllness { margin-top: 7px; padding-top: 6px; border-top: 1px dashed #d8b98a; display: flex; gap: 6px; align-items: center; }
+    #spIllness .sick { color: #d9534f; font-weight: bold; }
+    #spIllness .fine { color: #58a880; }
+    #spIllness .deadTag { color: #444; font-weight: bold; }
+
+    /* ===== 点猫环绕功能菜单 ===== */
+    #petMenu { position: fixed; z-index: 14; display: none; }
+    #petMenu.show { display: block; }
+    .pmItem {
+      position: absolute; width: 48px; height: 60px; margin: -30px 0 0 -24px;
+      display: flex; flex-direction: column; align-items: center; cursor: pointer;
+    }
+    .pmItem .ic {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #ffe9a8, #ffc93d 60%, #e8a01f);
+      border: 2px solid #b9873d; box-shadow: 0 3px 6px rgba(0,0,0,.35);
+      display: flex; align-items: center; justify-content: center; transition: transform .1s;
+    }
+    .pmItem .ic img { width: 24px; height: 24px; }
+    .pmItem:hover .ic { transform: scale(1.15); }
+    .pmItem .lb {
+      margin-top: 2px; font-size: 11px; color: #fff; background: rgba(90, 60, 20, .8);
+      padding: 1px 6px; border-radius: 8px; white-space: nowrap;
+    }
+    .pmItem.disabled { cursor: not-allowed; }
+    .pmItem.disabled .ic { filter: grayscale(1); opacity: .55; }
+    .pmItem.disabled:hover .ic { transform: none; }
+
+    /* ===== 原版商城窗口 ===== */
+    #shopWin {
+      position: fixed; left: 50%; top: 50%; width: 800px; height: 600px; z-index: 15; display: none;
+      background: url("/qqpet/store/BG.png") no-repeat; background-size: 100% 100%;
+      color: #6b4b2a; user-select: none;
+      transform: translate(-50%, -50%) scale(var(--winScale, 1));
+    }
+    #shopWin.show { display: block; }
+    #shopWin .title {
+      position: absolute; left: 0; right: 0; top: -34px; text-align: center;
+      color: #ffe6ad; font-size: 20px; font-weight: bold; text-shadow: 0 2px 3px rgba(0,0,0,.5);
+    }
+    .winClose { position: absolute; right: 10px; top: 8px; width: 22px; height: 22px; cursor: pointer; z-index: 3; }
+    #shopPreview {
+      position: absolute; left: 26px; top: 22px; width: 300px; height: 222px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    }
+    #shopPreview img { width: 86px; height: 86px; image-rendering: pixelated; }
+    #shopPreview .nm { font-size: 16px; font-weight: bold; margin-top: 6px; }
+    #shopPreview .ds { font-size: 12px; color: #937149; margin-top: 4px; max-width: 250px; }
+    #shopDetail {
+      position: absolute; left: 22px; top: 296px; width: 306px; height: 236px;
+      padding: 12px 14px; font-size: 13px; color: #4c3316; overflow: hidden;
+    }
+    #shopDetail .row { margin-top: 8px; }
+    #shopDetail .price { color: #b3541e; font-weight: bold; }
+    #shopBuyBtn {
+      margin-top: 14px; width: 100%; padding: 9px 0; border: none; border-radius: 10px; cursor: pointer;
+      font-size: 15px; font-weight: bold; color: #fff;
+      background: linear-gradient(#ffb648, #ef8f1d); box-shadow: 0 3px 0 #b96a10;
+    }
+    #shopBuyBtn:disabled { opacity: .55; cursor: default; }
+    #shopYb { position: absolute; left: 76px; top: 561px; width: 240px; font-size: 14px; font-weight: bold; color: #7d4d0b; }
+    #shopTabs { position: absolute; left: 356px; top: 14px; display: flex; gap: 4px; z-index: 2; }
+    .shopTab {
+      width: 81px; height: 27px; line-height: 25px; text-align: center; cursor: pointer;
+      font-size: 13px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.4);
+      background: url("/qqpet/store/Items_Tag.png") no-repeat; background-size: 100% 100%;
+    }
+    .shopTab.sel { background-image: url("/qqpet/store/Items_Tag_Selected.png"); color: #6b3d05; text-shadow: none; }
+    #shopGrid {
+      position: absolute; left: 352px; top: 48px; width: 436px; height: 536px;
+      overflow-y: auto; display: grid; grid-template-columns: repeat(2, 159px);
+      gap: 10px 14px; align-content: start; padding: 6px 10px;
+    }
+    #shopGrid::-webkit-scrollbar { width: 8px; }
+    #shopGrid::-webkit-scrollbar-thumb { background: #a0824f; border-radius: 4px; }
+    .goodCard {
+      position: relative; width: 159px; height: 78px; cursor: pointer;
+      background: url("/qqpet/store/Card_Items.png") no-repeat; background-size: 100% 100%;
+    }
+    .goodCard.sel { outline: 2px solid #ffd35e; border-radius: 8px; }
+    .goodCard img.gi { position: absolute; left: 9px; top: 14px; width: 48px; height: 48px; }
+    .goodCard .gn { position: absolute; left: 66px; top: 13px; width: 88px; font-size: 12px; font-weight: bold; color: #5c3a12;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .goodCard .gp { position: absolute; left: 66px; top: 34px; font-size: 12px; color: #b3541e; font-weight: bold; }
+    .goodCard button {
+      position: absolute; right: 8px; bottom: 7px; padding: 2px 10px; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 11px; color: #fff; background: linear-gradient(#ffb648, #ef8f1d);
+    }
+    .goodCard .badge { position: absolute; right: -6px; top: -10px; width: 40px; pointer-events: none; }
+
+    /* ===== 格子背包 ===== */
+    #bagWin {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 15; display: none;
+      width: 396px; background: #fdf6e3; border: 3px solid #b98a52; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.5); color: #6b4b2a;
+    }
+    #bagWin.show { display: block; }
+    #bagWin .head {
+      height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+      background: linear-gradient(#f7b733, #e08e1b); border-radius: 8px 8px 0 0;
+      color: #fff; font-weight: bold; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+    #bagWin .head img { width: 18px; height: 18px; cursor: pointer; }
+    #bagTabs { display: flex; gap: 6px; padding: 8px 10px 0; }
+    .bagTab {
+      padding: 3px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px;
+      background: #e7d3ac; color: #8a6a42; border: 1px solid #d0ac74; border-bottom: none;
+    }
+    .bagTab.sel { background: #fff3d8; color: #6b3d05; font-weight: bold; }
+    #bagGrid {
+      margin: 0 10px 8px; padding: 10px; min-height: 196px; max-height: 260px; overflow-y: auto;
+      background: #fff3d8; border: 1px solid #d0ac74; border-radius: 0 8px 8px 8px;
+      display: grid; grid-template-columns: repeat(6, 56px); gap: 6px; align-content: start;
+    }
+    .bagCell {
+      position: relative; width: 56px; height: 56px; border-radius: 8px; cursor: pointer;
+      background: #fffaf0; border: 1px solid #d8b98a; display: flex; align-items: center; justify-content: center;
+    }
+    .bagCell:hover { border-color: #ef8f1d; box-shadow: 0 0 6px rgba(239, 143, 29, .6); }
+    .bagCell.sel { border: 2px solid #ef8f1d; }
+    .bagCell img { width: 40px; height: 40px; }
+    .bagCell .ct {
+      position: absolute; right: 1px; bottom: 1px; min-width: 16px; height: 16px; line-height: 16px;
+      text-align: center; border-radius: 8px; font-size: 10px; color: #fff; background: #e0821c; padding: 0 3px;
+    }
+    #bagInfo { display: flex; align-items: center; gap: 10px; padding: 0 12px 12px; font-size: 12px; min-height: 40px; }
+    #bagInfo .desc { flex: 1; color: #8a6a42; }
+    #bagUseBtn {
+      padding: 6px 22px; border: none; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
+      color: #fff; background: linear-gradient(#ffb648, #ef8f1d); box-shadow: 0 2px 0 #b96a10;
+    }
+    #bagUseBtn:disabled { opacity: .5; cursor: default; }
+    .bagEmpty { grid-column: 1 / -1; text-align: center; color: #b09468; padding: 30px 0; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -133,18 +247,10 @@
   <div id="game"></div>
 
   <div id="floatMsg"></div>
-  <div id="actionBar">
-    <div id="petStats">
-      <div class="stat"><span>饱腹</span><div class="statTrack"><div id="hungerFill" class="statFill"></div></div><b id="hungerValue">80</b></div>
-      <div class="stat"><span>清洁</span><div class="statTrack"><div id="cleanFill" class="statFill"></div></div><b id="cleanValue">80</b></div>
-      <div class="stat"><span>心情</span><div class="statTrack"><div id="moodFill" class="statFill"></div></div><b id="moodValue">75</b></div>
-      <div id="petMeta"><span>🪙 <b id="ybValue">0</b> 元宝</span><span id="illnessTag"></span></div>
-    </div>
-    <button id="bagBtn" class="barBtn">🎒 背包</button>
-    <button id="shopBtn" class="barBtn">🛒 商店</button>
-  </div>
-  <div id="bagPanel" class="panel"><h3>🎒 背包 <span class="close" data-close="bagPanel">✕</span></h3><div id="bagList"></div></div>
-  <div id="shopPanel" class="panel"><h3>🛒 商店 <span class="close" data-close="shopPanel">✕</span></h3><div id="shopList"></div></div>
+  <div id="statePanel"></div>
+  <div id="petMenu"></div>
+  <div id="shopWin"></div>
+  <div id="bagWin"></div>
   <div id="chatBar">
     <input id="chatInput" placeholder="和冯二喵说点什么…" />
     <button id="sendBtn">🐾 发送</button>

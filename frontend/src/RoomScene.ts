@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import { ambient } from "./api";
 
-const W = 960;
-const H = 640;
+export const W = 960;
+export const H = 640;
 
 interface Prop {
   name: string;
@@ -59,9 +59,11 @@ export class RoomScene extends Phaser.Scene {
   private greeted = false;
   private lastPetAt = 0;
   mood = 75;
+  dead = false;
   onPetComplete: ((part: "head" | "body") => void) | null = null;
   onLureComplete: (() => void) | null = null;
   onFeedComplete: (() => void) | null = null;
+  onCatClick: ((x: number, y: number) => void) | null = null;
 
   constructor() {
     super("room");
@@ -96,7 +98,10 @@ export class RoomScene extends Phaser.Scene {
     // 悬停时停下脚步，方便点击；移开后继续自主行动
     this.cat.on("pointerover", () => this.setHovered(true));
     this.cat.on("pointerout", () => this.setHovered(false));
-    this.cat.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.petCat(pointer));
+    // 点猫：弹出 QQ宠物式环绕功能菜单
+    this.cat.on("pointerdown", () => {
+      this.onCatClick?.(this.cat.x, this.cat.y - this.cat.displayHeight * 0.5);
+    });
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[]) => {
       if (objects.includes(this.cat)) return;
       this.lureTo(pointer.worldX, pointer.worldY);
@@ -124,35 +129,45 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
-  /** 摸猫：按点击部位（头/身体）播不同反应 */
-  private petCat(pointer: Phaser.Input.Pointer) {
-    if (this.busyChatting) return;
+  /** 环绕菜单里的「玩耍」：逗猫反应 */
+  playWithCat() {
+    if (this.busyChatting || this.dead) return;
     if (this.time.now - this.lastPetAt < 1500) return;
     this.lastPetAt = this.time.now;
-    const headTop = this.cat.y - this.cat.displayHeight;
-    const part: "head" | "body" = pointer.worldY < headTop + this.cat.displayHeight * 0.45 ? "head" : "body";
     this.stateTimer?.remove();
     this.walkTween?.stop();
     const lowMood = this.mood < 30;
-    if (part === "head") {
-      this.setState("sit");
-      this.currentActivity = "被摸头";
-      this.showBubble(Phaser.Utils.Array.GetRandom(lowMood
-        ? ["喵呜……（委屈地蹭了蹭你的手）", "……哼，勉强让你摸一下"]
-        : ["呼噜呼噜……摸头舒服", "喵～再摸一会儿", "蹭蹭你"]));
-    } else {
-      this.setState("play");
-      this.currentActivity = "被挠痒痒";
-      this.showBubble(Phaser.Utils.Array.GetRandom(lowMood
-        ? ["没心情玩……再摸摸我吧", "喵呜……轻点"]
-        : ["喵嘿，好痒！", "肚子不许摸太久！", "翻个身给你摸"]));
-    }
-    this.onPetComplete?.(part);
+    this.setState("play");
+    this.currentActivity = "和你玩耍";
+    this.showBubble(Phaser.Utils.Array.GetRandom(lowMood
+      ? ["没心情玩……再陪陪我吧", "喵呜……轻点"]
+      : ["喵嘿，好痒！", "再玩一会儿！", "翻个身给你摸"]));
+    this.onLureComplete?.();
     this.scheduleNextState(Phaser.Math.Between(6000, 10000));
   }
 
+  /** 死亡状态：灰化躺倒，停止自主行动；复活后恢复 */
+  setDead(v: boolean) {
+    if (this.dead === v) return;
+    this.dead = v;
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
+    if (v) {
+      this.setState("sleep");
+      this.zzz.setVisible(false);
+      this.cat.setTint(0x888888);
+      this.currentActivity = "（死亡）";
+      this.hideBubble();
+    } else {
+      this.cat.clearTint();
+      this.setState("sit");
+      this.showBubble("呼……我活过来了！");
+      this.scheduleNextState(4000);
+    }
+  }
+
   lureTo(x: number, y: number) {
-    if (this.busyChatting) return;
+    if (this.busyChatting || this.dead) return;
     const tx = Phaser.Math.Clamp(x, 95, W - 95);
     const ty = Phaser.Math.Clamp(y, 430, H - 44);
     this.showLureToy(tx, ty);
@@ -167,7 +182,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   feedTreat(item = "小鱼干") {
-    if (this.busyChatting) return;
+    if (this.busyChatting || this.dead) return;
     const dir = this.cat.x < W / 2 ? 1 : -1;
     const tx = Phaser.Math.Clamp(this.cat.x + dir * 115, 110, W - 110);
     const ty = Phaser.Math.Clamp(this.cat.y + 28, 455, H - 50);
@@ -182,19 +197,15 @@ export class RoomScene extends Phaser.Scene {
     });
   }
 
-  /** 使用非食物类物品的表现：洗澡/玩具/吃药 */
-  useItem(kind: "clean" | "toy" | "medicine", item: string) {
+  /** 使用非食物类物品的表现：洗澡/吃药 */
+  useItem(kind: "commodity" | "medicine", item: string) {
     if (this.busyChatting) return;
     this.stateTimer?.remove();
     this.walkTween?.stop();
-    if (kind === "clean") {
+    if (kind === "commodity") {
       this.setState("eat");
       this.currentActivity = "洗澡澡";
       this.showBubble(`用${item}洗得香喷喷～`);
-    } else if (kind === "toy") {
-      this.setState("play");
-      this.currentActivity = `玩${item}`;
-      this.showBubble(`${item}最好玩了！`);
     } else {
       this.setState("sit");
       this.currentActivity = "乖乖吃药";
@@ -204,7 +215,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private setHovered(v: boolean) {
-    if (this.hovered === v || this.busyChatting) return;
+    if (this.hovered === v || this.busyChatting || this.dead) return;
     this.hovered = v;
     if (v) {
       this.stateTimer?.remove();
@@ -392,7 +403,7 @@ export class RoomScene extends Phaser.Scene {
   private scheduleNextState(delay: number) {
     this.stateTimer?.remove();
     this.stateTimer = this.time.delayedCall(delay, () => {
-      if (this.busyChatting || this.hovered) return;
+      if (this.busyChatting || this.hovered || this.dead) return;
       // 心情低落时更想窝着/发呆
       const props = this.mood < 30
         ? this.roomProps().filter((p) => p.state === "sleep" || p.state === "idle" || p.state === "sit")
@@ -439,7 +450,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private async doAmbient() {
-    if (this.busyChatting || this.bubble.visible) return;
+    if (this.busyChatting || this.bubble.visible || this.dead) return;
     try {
       const r = await ambient(this.currentActivity);
       if (!this.busyChatting) this.showBubble(r.text);

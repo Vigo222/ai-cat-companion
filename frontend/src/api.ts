@@ -44,21 +44,33 @@ export interface PetState {
   hunger: number;
   clean: number;
   mood: number;
+  max_hunger: number;
+  max_clean: number;
+  max_mood: number;
   health: number;
+  max_health: number;
+  growth: number;
+  level: number;
+  up_growth: number;
+  next_growth: number;
+  growth_rate: number;
+  age_hours: number;
   illness: string | null;
+  cure: string | null;
+  dead: boolean;
   yb: number;
   inventory: Record<string, number>;
 }
 
 export interface ShopItem {
+  id: string;
   name: string;
-  kind: "food" | "clean" | "toy" | "medicine";
+  type: "food" | "commodity" | "medicine";
   price: number;
+  starve: number;
+  clean: number;
   desc: string;
-  hunger?: number;
-  clean?: number;
-  mood?: number;
-  cure?: string;
+  rectype: string;
 }
 
 export function petState() {

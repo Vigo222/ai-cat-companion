@@ -167,7 +167,7 @@ async def pet_care(req: PetCareReq):
 @app.post("/api/pet/shop")
 async def pet_shop(req: PetStateReq):
     check(req.code)
-    return {"items": [{"name": n, **spec} for n, spec in memory.SHOP.items()]}
+    return {"items": list(memory.SHOP.values())}
 
 
 @app.post("/api/pet/buy")
