@@ -1,57 +1,105 @@
-import { chat, login, session } from "./api";
+import { chat, login, petBuy, petCare, petShop, petState, petUse, session } from "./api";
+import type { PetState, ShopItem } from "./api";
 import { createGame, RoomScene } from "./RoomScene";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-interface PetCareStats {
-  hunger: number;
-  mood: number;
-  updatedAt: number;
+const KIND_ICON: Record<ShopItem["kind"], string> = {
+  food: "🐟",
+  clean: "🧼",
+  toy: "🧶",
+  medicine: "💊",
+};
+
+let pet: PetState | null = null;
+let shopItems: ShopItem[] = [];
+const itemKind = (name: string) => shopItems.find((s) => s.name === name)?.kind;
+
+function renderPet(scene: RoomScene) {
+  if (!pet) return;
+  const set = (fill: string, val: string, v: number) => {
+    $(fill).style.width = `${Math.round(v)}%`;
+    $(val).textContent = String(Math.round(v));
+  };
+  set("hungerFill", "hungerValue", pet.hunger);
+  set("cleanFill", "cleanValue", pet.clean);
+  set("moodFill", "moodValue", pet.mood);
+  $("ybValue").textContent = String(pet.yb);
+  $("illnessTag").textContent = pet.illness ? `🤒 ${pet.illness}` : "";
+  scene.mood = pet.mood;
+  renderBag(scene);
 }
 
-const STAT_MAX = 100;
-const PET_CARE_KEY = "ai-cat-companion:pet-care";
-
-function clampStat(v: number) {
-  return Math.max(0, Math.min(STAT_MAX, Math.round(v)));
-}
-
-function loadPetCareStats(): PetCareStats {
-  const fallback: PetCareStats = { hunger: 80, mood: 75, updatedAt: Date.now() };
-  try {
-    const raw = localStorage.getItem(PET_CARE_KEY);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<PetCareStats>;
-    const elapsedMinutes = Math.max(0, Math.floor((Date.now() - Number(parsed.updatedAt ?? Date.now())) / 60000));
-    return {
-      hunger: clampStat(Number(parsed.hunger ?? fallback.hunger) - elapsedMinutes),
-      mood: clampStat(Number(parsed.mood ?? fallback.mood) - Math.floor(elapsedMinutes / 2)),
-      updatedAt: Date.now(),
-    };
-  } catch {
-    return fallback;
+function renderBag(scene: RoomScene) {
+  const list = $("bagList");
+  list.innerHTML = "";
+  const entries = Object.entries(pet?.inventory ?? {});
+  if (entries.length === 0) {
+    list.innerHTML = `<div class="empty">背包空空的，去商店买点吧</div>`;
+    return;
+  }
+  for (const [name, count] of entries) {
+    const kind = itemKind(name);
+    const row = document.createElement("div");
+    row.className = "itemRow";
+    row.innerHTML = `<div class="info">${KIND_ICON[kind ?? "food"]} ${name} × ${count}</div>`;
+    const btn = document.createElement("button");
+    btn.textContent = "使用";
+    btn.addEventListener("click", () => useItem(scene, name));
+    row.appendChild(btn);
+    list.appendChild(row);
   }
 }
 
-function savePetCareStats(stats: PetCareStats) {
-  localStorage.setItem(PET_CARE_KEY, JSON.stringify({ ...stats, updatedAt: Date.now() }));
+function renderShop(scene: RoomScene) {
+  const list = $("shopList");
+  list.innerHTML = "";
+  for (const item of shopItems) {
+    const row = document.createElement("div");
+    row.className = "itemRow";
+    row.innerHTML = `<div class="info">${KIND_ICON[item.kind]} ${item.name} · 🪙${item.price}<small>${item.desc}</small></div>`;
+    const btn = document.createElement("button");
+    btn.textContent = "购买";
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        pet = await petBuy(item.name);
+        renderPet(scene);
+        scene.showBubble(`买到${item.name}啦～`);
+      } catch (e) {
+        scene.showBubble((e as Error).message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
 }
 
-function renderPetCareStats(stats: PetCareStats) {
-  const hunger = clampStat(stats.hunger);
-  const mood = clampStat(stats.mood);
-  $("hungerFill").style.width = `${hunger}%`;
-  $("moodFill").style.width = `${mood}%`;
-  $("hungerValue").textContent = String(hunger);
-  $("moodValue").textContent = String(mood);
+async function useItem(scene: RoomScene, name: string) {
+  const kind = itemKind(name);
+  if (kind === "food" && pet && pet.hunger >= 98) {
+    scene.showBubble("已经吃饱啦，先陪我玩一会儿吧～");
+    return;
+  }
+  try {
+    pet = await petUse(name);
+    renderPet(scene);
+    if (kind === "food" || kind === undefined) scene.feedTreat(name);
+    else scene.useItem(kind, name);
+  } catch (e) {
+    scene.showBubble((e as Error).message);
+  }
 }
 
-function updatePetCareStats(stats: PetCareStats, delta: Partial<Omit<PetCareStats, "updatedAt">>) {
-  stats.hunger = clampStat(stats.hunger + (delta.hunger ?? 0));
-  stats.mood = clampStat(stats.mood + (delta.mood ?? 0));
-  stats.updatedAt = Date.now();
-  savePetCareStats(stats);
-  renderPetCareStats(stats);
+async function refreshPet(scene: RoomScene) {
+  try {
+    pet = await petState();
+    renderPet(scene);
+  } catch {
+    /* API 不可用时静默 */
+  }
 }
 
 let who = "";
@@ -87,27 +135,50 @@ function startGame() {
   game.events.once("ready", () => {
     const scene = game.scene.getScene("room") as RoomScene;
     setupChat(scene);
+    setupPetCare(scene);
   });
+}
+
+function setupPetCare(scene: RoomScene) {
+  $("actionBar").classList.add("show");
+  void petShop().then((r) => {
+    shopItems = r.items;
+    renderShop(scene);
+    void refreshPet(scene);
+  });
+  window.setInterval(() => void refreshPet(scene), 60000);
+
+  const togglePanel = (id: string) => {
+    for (const pid of ["bagPanel", "shopPanel"]) {
+      $(pid).classList.toggle("show", pid === id && !$(pid).classList.contains("show"));
+    }
+  };
+  $("bagBtn").addEventListener("click", () => togglePanel("bagPanel"));
+  $("shopBtn").addEventListener("click", () => togglePanel("shopPanel"));
+  document.querySelectorAll<HTMLElement>(".panel .close").forEach((x) => {
+    x.addEventListener("click", () => $(x.dataset.close!).classList.remove("show"));
+  });
+
+  scene.onPetComplete = () => {
+    void petCare("pet").then((s) => {
+      pet = s;
+      renderPet(scene);
+    });
+  };
+  scene.onLureComplete = () => {
+    void petCare("play").then((s) => {
+      pet = s;
+      renderPet(scene);
+    });
+  };
 }
 
 function setupChat(scene: RoomScene) {
   const input = $("chatInput") as HTMLInputElement;
   const sendBtn = $("sendBtn") as HTMLButtonElement;
-  const feedBtn = $("feedBtn") as HTMLButtonElement;
   const floatMsg = $("floatMsg");
-  const petCareStats = loadPetCareStats();
 
   $("chatBar").classList.add("show");
-  $("actionBar").classList.add("show");
-  renderPetCareStats(petCareStats);
-  window.setInterval(() => updatePetCareStats(petCareStats, { hunger: -1, mood: -1 }), 60000);
-
-  scene.onCatClick = () => {
-    scene.showBubble("喵？");
-    input.focus();
-  };
-  scene.onLureComplete = () => updatePetCareStats(petCareStats, { mood: 8 });
-  scene.onFeedComplete = () => updatePetCareStats(petCareStats, { hunger: 24, mood: 5 });
 
   // 玩家的话从输入条上方飘起
   const flyUserMsg = (text: string) => {
@@ -157,7 +228,7 @@ function setupChat(scene: RoomScene) {
       const r = await chat(text);
       speakReply(r.reply);
     } catch {
-      const dur = scene.showBubble("（小凡走神了，再说一次喵）");
+      const dur = scene.showBubble("（冯二喵走神了，再说一次喵）");
       window.setTimeout(() => scene.setChatting(false), dur);
     } finally {
       sending = false;
@@ -165,17 +236,6 @@ function setupChat(scene: RoomScene) {
       input.focus();
     }
   };
-  feedBtn.addEventListener("click", () => {
-    if (petCareStats.hunger >= 98) {
-      scene.showBubble("已经吃饱啦，先陪我玩一会儿吧～");
-      return;
-    }
-    feedBtn.disabled = true;
-    scene.feedTreat();
-    window.setTimeout(() => {
-      feedBtn.disabled = false;
-    }, 3600);
-  });
   sendBtn.addEventListener("click", send);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") send();

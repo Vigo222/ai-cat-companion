@@ -37,7 +37,7 @@ def load_persona():
 
 PERSONA = load_persona()
 
-SYSTEM_TMPL = """你是一只名叫「小凡」的猫咪，生活在一个温馨的小房间游戏里。你不是普通的 AI——你是「我」（凡）的人格化身，
+SYSTEM_TMPL = """你是一只名叫「冯二喵」的猫咪，生活在一个温馨的小房间游戏里。你不是普通的 AI——你是「我」（冯二狗）的人格化身，
 继承了「我」全部的说话方式、口头禅、性格和与好友汝道之间的相处模式与暗号。以下是你的人格卡：
 
 {persona}
@@ -77,6 +77,20 @@ class AmbientReq(BaseModel):
     player: str
     activity: str = "在房间里踱步"
     kind: str = "ambient"  # ambient | greeting
+
+
+class PetStateReq(BaseModel):
+    code: str
+
+
+class PetCareReq(BaseModel):
+    code: str
+    action: str  # play | pet
+
+
+class PetItemReq(BaseModel):
+    code: str
+    item: str
 
 
 def check(code):
@@ -125,8 +139,57 @@ async def login(req: LoginReq):
     db = memory.get_db()
     last_seen = memory.touch_player(db, req.player)
     away = int(time.time()) - last_seen if last_seen else None
+    bonus = memory.grant_login_bonus(db)
     db.close()
-    return {"ok": True, "away_seconds": away}
+    return {"ok": True, "away_seconds": away, "bonus_yb": bonus}
+
+
+@app.post("/api/pet/state")
+async def pet_state(req: PetStateReq):
+    check(req.code)
+    db = memory.get_db()
+    state = memory.get_pet_state(db)
+    db.close()
+    return state
+
+
+@app.post("/api/pet/care")
+async def pet_care(req: PetCareReq):
+    check(req.code)
+    db = memory.get_db()
+    state = memory.care_pet(db, req.action)
+    db.close()
+    if state is None:
+        raise HTTPException(400, "不认识这个动作喵")
+    return state
+
+
+@app.post("/api/pet/shop")
+async def pet_shop(req: PetStateReq):
+    check(req.code)
+    return {"items": [{"name": n, **spec} for n, spec in memory.SHOP.items()]}
+
+
+@app.post("/api/pet/buy")
+async def pet_buy(req: PetItemReq):
+    check(req.code)
+    db = memory.get_db()
+    state, err = memory.buy_item(db, req.item)
+    db.close()
+    if err:
+        raise HTTPException(400, err)
+    return state
+
+
+@app.post("/api/pet/use")
+async def pet_use(req: PetItemReq):
+    check(req.code)
+    db = memory.get_db()
+    state, err = memory.use_item(db, req.item)
+    db.close()
+    if err:
+        raise HTTPException(400, err)
+    return state
 
 
 @app.post("/api/chat")

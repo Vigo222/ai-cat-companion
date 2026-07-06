@@ -57,7 +57,9 @@ export class RoomScene extends Phaser.Scene {
   private lureToy?: Phaser.GameObjects.Container;
   private snack?: Phaser.GameObjects.Container;
   private greeted = false;
-  onCatClick: (() => void) | null = null;
+  private lastPetAt = 0;
+  mood = 75;
+  onPetComplete: ((part: "head" | "body") => void) | null = null;
   onLureComplete: (() => void) | null = null;
   onFeedComplete: (() => void) | null = null;
 
@@ -94,7 +96,7 @@ export class RoomScene extends Phaser.Scene {
     // 悬停时停下脚步，方便点击；移开后继续自主行动
     this.cat.on("pointerover", () => this.setHovered(true));
     this.cat.on("pointerout", () => this.setHovered(false));
-    this.cat.on("pointerdown", () => this.onCatClick?.());
+    this.cat.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.petCat(pointer));
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[]) => {
       if (objects.includes(this.cat)) return;
       this.lureTo(pointer.worldX, pointer.worldY);
@@ -122,6 +124,33 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
+  /** 摸猫：按点击部位（头/身体）播不同反应 */
+  private petCat(pointer: Phaser.Input.Pointer) {
+    if (this.busyChatting) return;
+    if (this.time.now - this.lastPetAt < 1500) return;
+    this.lastPetAt = this.time.now;
+    const headTop = this.cat.y - this.cat.displayHeight;
+    const part: "head" | "body" = pointer.worldY < headTop + this.cat.displayHeight * 0.45 ? "head" : "body";
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
+    const lowMood = this.mood < 30;
+    if (part === "head") {
+      this.setState("sit");
+      this.currentActivity = "被摸头";
+      this.showBubble(Phaser.Utils.Array.GetRandom(lowMood
+        ? ["喵呜……（委屈地蹭了蹭你的手）", "……哼，勉强让你摸一下"]
+        : ["呼噜呼噜……摸头舒服", "喵～再摸一会儿", "蹭蹭你"]));
+    } else {
+      this.setState("play");
+      this.currentActivity = "被挠痒痒";
+      this.showBubble(Phaser.Utils.Array.GetRandom(lowMood
+        ? ["没心情玩……再摸摸我吧", "喵呜……轻点"]
+        : ["喵嘿，好痒！", "肚子不许摸太久！", "翻个身给你摸"]));
+    }
+    this.onPetComplete?.(part);
+    this.scheduleNextState(Phaser.Math.Between(6000, 10000));
+  }
+
   lureTo(x: number, y: number) {
     if (this.busyChatting) return;
     const tx = Phaser.Math.Clamp(x, 95, W - 95);
@@ -137,7 +166,7 @@ export class RoomScene extends Phaser.Scene {
     });
   }
 
-  feedTreat() {
+  feedTreat(item = "小鱼干") {
     if (this.busyChatting) return;
     const dir = this.cat.x < W / 2 ? 1 : -1;
     const tx = Phaser.Math.Clamp(this.cat.x + dir * 115, 110, W - 110);
@@ -145,12 +174,33 @@ export class RoomScene extends Phaser.Scene {
     this.showSnack(tx, ty);
     this.walkToPoint(tx, ty, () => {
       this.setState("eat");
-      this.currentActivity = "吃小鱼干";
-      this.showBubble("啊呜，小鱼干好香！");
+      this.currentActivity = `吃${item}`;
+      this.showBubble(`啊呜，${item}好香！`);
       this.onFeedComplete?.();
       this.fadeAndDestroy(this.snack, 2600);
       this.snack = undefined;
     });
+  }
+
+  /** 使用非食物类物品的表现：洗澡/玩具/吃药 */
+  useItem(kind: "clean" | "toy" | "medicine", item: string) {
+    if (this.busyChatting) return;
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
+    if (kind === "clean") {
+      this.setState("eat");
+      this.currentActivity = "洗澡澡";
+      this.showBubble(`用${item}洗得香喷喷～`);
+    } else if (kind === "toy") {
+      this.setState("play");
+      this.currentActivity = `玩${item}`;
+      this.showBubble(`${item}最好玩了！`);
+    } else {
+      this.setState("sit");
+      this.currentActivity = "乖乖吃药";
+      this.showBubble(`吃了${item}，感觉好多了……`);
+    }
+    this.scheduleNextState(Phaser.Math.Between(8000, 14000));
   }
 
   private setHovered(v: boolean) {
@@ -343,7 +393,11 @@ export class RoomScene extends Phaser.Scene {
     this.stateTimer?.remove();
     this.stateTimer = this.time.delayedCall(delay, () => {
       if (this.busyChatting || this.hovered) return;
-      const target = Phaser.Utils.Array.GetRandom(this.roomProps());
+      // 心情低落时更想窝着/发呆
+      const props = this.mood < 30
+        ? this.roomProps().filter((p) => p.state === "sleep" || p.state === "idle" || p.state === "sit")
+        : this.roomProps();
+      const target = Phaser.Utils.Array.GetRandom(props);
       this.walkTo(target);
     });
   }

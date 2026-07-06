@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>小凡的房间</title>
+  <title>冯二喵的房间</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #2b2530; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
@@ -56,7 +56,7 @@
     }
     #actionBar.show { display: flex; }
     #petStats {
-      width: 190px; padding: 12px 14px; border-radius: 20px;
+      width: 208px; padding: 12px 14px; border-radius: 20px;
       background: rgba(255, 253, 247, .9); color: #7a5c49; box-shadow: 0 4px 14px rgba(122, 92, 73, .22);
       backdrop-filter: blur(6px); font-size: 13px;
     }
@@ -65,14 +65,40 @@
     .statTrack { height: 9px; border-radius: 99px; background: rgba(217, 189, 160, .35); overflow: hidden; }
     .statFill { height: 100%; width: 50%; border-radius: inherit; transition: width .25s ease; }
     #hungerFill { background: linear-gradient(90deg, #ffbf6b, #ff8f70); }
+    #cleanFill { background: linear-gradient(90deg, #9fd8ff, #6db2f0); }
     #moodFill { background: linear-gradient(90deg, #7ac9a2, #8fb7ff); }
-    #feedBtn {
+    #petMeta { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    #ybValue { color: #d99a2b; font-weight: bold; }
+    #illnessTag { color: #d9534f; font-weight: bold; }
+    .barBtn {
       padding: 12px 18px; border: none; border-radius: 22px; cursor: pointer; font-size: 15px;
       background: rgba(255, 253, 247, .94); color: #7a5c49; box-shadow: 0 4px 14px rgba(122, 92, 73, .25);
       transition: transform .1s, background .15s;
     }
-    #feedBtn:hover { transform: translateY(-2px); background: #fff6df; }
-    #feedBtn:disabled { opacity: .65; cursor: default; transform: none; }
+    .barBtn:hover { transform: translateY(-2px); background: #fff6df; }
+    .barBtn:disabled { opacity: .65; cursor: default; transform: none; }
+    .panel {
+      position: fixed; right: 26px; bottom: 92px; width: 250px; max-height: 60vh; overflow-y: auto;
+      padding: 14px; border-radius: 20px; z-index: 11; display: none;
+      background: rgba(255, 253, 247, .96); color: #7a5c49; box-shadow: 0 6px 22px rgba(122, 92, 73, .3);
+      backdrop-filter: blur(6px); font-size: 13px;
+    }
+    .panel.show { display: block; }
+    .panel h3 { font-size: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .panel h3 .close { cursor: pointer; color: #c4ab93; }
+    .itemRow {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 7px 6px; border-radius: 10px;
+    }
+    .itemRow:hover { background: rgba(255, 214, 224, .35); }
+    .itemRow .info { flex: 1; }
+    .itemRow .info small { color: #b39a82; display: block; }
+    .itemRow button {
+      padding: 5px 12px; border: none; border-radius: 12px; cursor: pointer; font-size: 12px;
+      background: #ffb78f; color: #fff;
+    }
+    .itemRow button:disabled { opacity: .5; cursor: default; }
+    .empty { color: #b39a82; text-align: center; padding: 12px 0; }
 
     /* 玩家说的话：从输入条上方飘起并淡出 */
     #floatMsg {
@@ -93,11 +119,11 @@
 </head>
 <body>
   <div id="login">
-    <h1>🐾 小凡的房间</h1>
+    <h1>🐾 冯二喵的房间</h1>
     <p>输入口令，选择你是谁</p>
     <input id="codeInput" type="password" placeholder="口令" />
     <div class="who">
-      <button data-who="凡">我是 凡</button>
+      <button data-who="冯二狗">我是 冯二狗</button>
       <button data-who="汝道">我是 汝道</button>
     </div>
     <div id="loginErr"></div>
@@ -110,12 +136,17 @@
   <div id="actionBar">
     <div id="petStats">
       <div class="stat"><span>饱腹</span><div class="statTrack"><div id="hungerFill" class="statFill"></div></div><b id="hungerValue">80</b></div>
+      <div class="stat"><span>清洁</span><div class="statTrack"><div id="cleanFill" class="statFill"></div></div><b id="cleanValue">80</b></div>
       <div class="stat"><span>心情</span><div class="statTrack"><div id="moodFill" class="statFill"></div></div><b id="moodValue">75</b></div>
+      <div id="petMeta"><span>🪙 <b id="ybValue">0</b> 元宝</span><span id="illnessTag"></span></div>
     </div>
-    <button id="feedBtn">🐟 喂小鱼干</button>
+    <button id="bagBtn" class="barBtn">🎒 背包</button>
+    <button id="shopBtn" class="barBtn">🛒 商店</button>
   </div>
+  <div id="bagPanel" class="panel"><h3>🎒 背包 <span class="close" data-close="bagPanel">✕</span></h3><div id="bagList"></div></div>
+  <div id="shopPanel" class="panel"><h3>🛒 商店 <span class="close" data-close="shopPanel">✕</span></h3><div id="shopList"></div></div>
   <div id="chatBar">
-    <input id="chatInput" placeholder="和小凡说点什么…" />
+    <input id="chatInput" placeholder="和冯二喵说点什么…" />
     <button id="sendBtn">🐾 发送</button>
   </div>
 
