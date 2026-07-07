@@ -23,7 +23,8 @@ async function post<T>(path: string, body: object): Promise<T> {
       await new Promise((res) => setTimeout(res, 800 * (attempt + 1)));
       continue;
     }
-    throw new Error(`${path} -> ${r.status}`);
+    const detail = await r.json().then((d) => d?.detail).catch(() => null);
+    throw new Error(detail || `${path} -> ${r.status}`);
   }
 }
 
@@ -37,4 +38,118 @@ export function chat(text: string) {
 
 export function ambient(activity: string, kind: "ambient" | "greeting" = "ambient") {
   return post<{ text: string }>("/api/ambient", { ...session, activity, kind });
+}
+
+export interface PetState {
+  hunger: number;
+  clean: number;
+  mood: number;
+  max_hunger: number;
+  max_clean: number;
+  max_mood: number;
+  health: number;
+  max_health: number;
+  growth: number;
+  level: number;
+  up_growth: number;
+  next_growth: number;
+  growth_rate: number;
+  age_hours: number;
+  illness: string | null;
+  cure: string | null;
+  dead: boolean;
+  yb: number;
+  charm: number;
+  intel: number;
+  strong: number;
+  study: Record<string, number>;
+  activity: PetActivity | null;
+  inventory: Record<string, number>;
+}
+
+export interface PetActivity {
+  type: "work" | "study";
+  id: string;
+  name: string;
+  end: number;
+  remain: number;
+  total: number;
+}
+
+export interface WorkJob {
+  id: string;
+  name: string;
+  charm: number;
+  intel: number;
+  strong: number;
+  clean: number;
+  starve: number;
+  mood: number;
+  yb: number;
+  use_time: number;
+  need: number;
+  education: Record<string, number>;
+}
+
+export interface StudyCourse {
+  id: string;
+  object: string;
+  subject: string;
+  school: string;
+  class_num_up: number;
+  class_num: number;
+  class_time: number;
+  tolk_name: string;
+  charm: number;
+  intel: number;
+  strong: number;
+  starve: number;
+  clean: number;
+}
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  type: "food" | "commodity" | "medicine";
+  price: number;
+  starve: number;
+  clean: number;
+  desc: string;
+  rectype: string;
+}
+
+export function petState() {
+  return post<PetState>("/api/pet/state", { code: session.code });
+}
+
+export function petCare(action: "play" | "pet") {
+  return post<PetState>("/api/pet/care", { code: session.code, action });
+}
+
+export function petShop() {
+  return post<{ items: ShopItem[] }>("/api/pet/shop", { code: session.code });
+}
+
+export function petBuy(item: string) {
+  return post<PetState>("/api/pet/buy", { code: session.code, item });
+}
+
+export function petUse(item: string) {
+  return post<PetState>("/api/pet/use", { code: session.code, item });
+}
+
+export function petJobs() {
+  return post<{ work: WorkJob[]; study: StudyCourse[] }>("/api/pet/jobs", { code: session.code });
+}
+
+export function petWork(item: string) {
+  return post<PetState>("/api/pet/work", { code: session.code, item });
+}
+
+export function petStudy(item: string) {
+  return post<PetState>("/api/pet/study", { code: session.code, item });
+}
+
+export function petActivityCancel() {
+  return post<PetState>("/api/pet/activity/cancel", { code: session.code });
 }

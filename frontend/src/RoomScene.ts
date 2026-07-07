@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import { ambient } from "./api";
 
-const W = 960;
-const H = 640;
+export const W = 960;
+export const H = 640;
 
 interface Prop {
   name: string;
@@ -14,19 +14,33 @@ interface Prop {
 
 type CatState = "idle" | "walk" | "sleep" | "play" | "sit" | "eat";
 
-const STATE_TEXTURE: Record<CatState, string> = {
-  idle: "cat_sit",
-  sit: "cat_sit",
-  eat: "cat_sit",
-  walk: "cat_walk",
-  sleep: "cat_sleep",
-  play: "cat_play",
+interface AnimSpec {
+  frames: number;
+  frameWidth: number;
+  frameHeight: number;
+  fps: number;
+  scale: number;
+}
+
+const ANIMS: Record<string, AnimSpec> = {
+  walk: { frames: 23, frameWidth: 421, frameHeight: 340, fps: 12, scale: 0.4791 },
+  sleep: { frames: 11, frameWidth: 519, frameHeight: 340, fps: 3, scale: 0.3768 },
+  sit: { frames: 22, frameWidth: 272, frameHeight: 340, fps: 6, scale: 0.6088 },
+  groom: { frames: 21, frameWidth: 235, frameHeight: 340, fps: 12, scale: 0.5921 },
+  play: { frames: 24, frameWidth: 304, frameHeight: 340, fps: 12, scale: 0.6344 },
 };
 
-const CAT_SCALE = 0.3;
+const STATE_ANIM: Record<CatState, string> = {
+  idle: "sit",
+  sit: "sit",
+  eat: "groom",
+  walk: "walk",
+  sleep: "sleep",
+  play: "play",
+};
 
 export class RoomScene extends Phaser.Scene {
-  private cat!: Phaser.GameObjects.Image;
+  private cat!: Phaser.GameObjects.Sprite;
   private shadow!: Phaser.GameObjects.Ellipse;
   private zzz!: Phaser.GameObjects.Text;
   private bubble!: Phaser.GameObjects.Container;
@@ -35,14 +49,22 @@ export class RoomScene extends Phaser.Scene {
   private typeTimer?: Phaser.Time.TimerEvent;
   private state: CatState = "sit";
   private busyChatting = false;
+  private busyActivity = false;
   private hovered = false;
   private props: Prop[] = [];
   private stateTimer?: Phaser.Time.TimerEvent;
   private ambientTimer?: Phaser.Time.TimerEvent;
   private walkTween?: Phaser.Tweens.Tween;
-  private breathTween?: Phaser.Tweens.Tween;
+  private lureToy?: Phaser.GameObjects.Container;
+  private snack?: Phaser.GameObjects.Container;
   private greeted = false;
-  onCatClick: (() => void) | null = null;
+  private lastPetAt = 0;
+  mood = 75;
+  dead = false;
+  onPetComplete: ((part: "head" | "body") => void) | null = null;
+  onLureComplete: (() => void) | null = null;
+  onFeedComplete: (() => void) | null = null;
+  onCatClick: ((x: number, y: number) => void) | null = null;
 
   constructor() {
     super("room");
@@ -50,14 +72,24 @@ export class RoomScene extends Phaser.Scene {
 
   preload() {
     this.load.image("room_bg", "assets/room_bg.png");
-    this.load.image("cat_sit", "assets/cat_sit.png");
-    this.load.image("cat_sit_blink", "assets/cat_sit_blink.png");
-    this.load.image("cat_walk", "assets/cat_walk.png");
-    this.load.image("cat_sleep", "assets/cat_sleep.png");
-    this.load.image("cat_play", "assets/cat_play.png");
+    this.load.svg("bone_tip", "qqpet/tip/14.svg", { width: 458, height: 358 });
+    for (const [name, a] of Object.entries(ANIMS)) {
+      this.load.spritesheet(`cat_${name}`, `assets/cat_${name}_sheet.png`, {
+        frameWidth: a.frameWidth,
+        frameHeight: a.frameHeight,
+      });
+    }
   }
 
   create() {
+    for (const [name, a] of Object.entries(ANIMS)) {
+      this.anims.create({
+        key: name,
+        frames: this.anims.generateFrameNumbers(`cat_${name}`, { start: 0, end: a.frames - 1 }),
+        frameRate: a.fps,
+        repeat: -1,
+      });
+    }
     this.add.image(W / 2, H / 2, "room_bg").setDisplaySize(W, H);
     this.createDust();
     this.createCat();
@@ -68,18 +100,20 @@ export class RoomScene extends Phaser.Scene {
     // 悬停时停下脚步，方便点击；移开后继续自主行动
     this.cat.on("pointerover", () => this.setHovered(true));
     this.cat.on("pointerout", () => this.setHovered(false));
-    this.cat.on("pointerdown", () => this.onCatClick?.());
+    // 点猫：弹出 QQ宠物式环绕功能菜单
+    this.cat.on("pointerdown", () => {
+      this.onCatClick?.(this.cat.x, this.cat.y - this.cat.displayHeight * 0.5);
+    });
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[]) => {
+      if (objects.includes(this.cat)) return;
+      this.lureTo(pointer.worldX, pointer.worldY);
+    });
 
     this.scheduleNextState(2500);
     this.ambientTimer = this.time.addEvent({
       delay: Phaser.Math.Between(15000, 28000),
       loop: true,
       callback: () => this.doAmbient(),
-    });
-    this.time.addEvent({
-      delay: Phaser.Math.Between(2800, 4600),
-      loop: true,
-      callback: () => this.blink(),
     });
     this.time.delayedCall(1200, () => this.doGreeting());
   }
@@ -89,14 +123,118 @@ export class RoomScene extends Phaser.Scene {
     if (v) {
       this.stateTimer?.remove();
       this.walkTween?.stop();
+      this.lureToy?.destroy();
+      this.lureToy = undefined;
       this.setState("sit");
     } else {
       this.scheduleNextState(5000);
     }
   }
 
+  /** 打工/上课中：停止自主行动，坐下干活/听课 */
+  setActivityMode(label: string | null) {
+    if (this.busyActivity === !!label) {
+      if (label) this.currentActivity = label;
+      return;
+    }
+    this.busyActivity = !!label;
+    if (label) {
+      this.stateTimer?.remove();
+      this.walkTween?.stop();
+      this.setState("sit");
+      this.currentActivity = label;
+    } else {
+      this.scheduleNextState(3000);
+    }
+  }
+
+  /** 环绕菜单里的「玩耍」：逗猫反应 */
+  playWithCat() {
+    if (this.busyChatting || this.busyActivity || this.dead) return;
+    if (this.time.now - this.lastPetAt < 1500) return;
+    this.lastPetAt = this.time.now;
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
+    const lowMood = this.mood < 30;
+    this.setState("play");
+    this.currentActivity = "和你玩耍";
+    this.showBubble(Phaser.Utils.Array.GetRandom(lowMood
+      ? ["没心情玩……再陪陪我吧", "喵呜……轻点"]
+      : ["喵嘿，好痒！", "再玩一会儿！", "翻个身给你摸"]));
+    this.onLureComplete?.();
+    this.scheduleNextState(Phaser.Math.Between(6000, 10000));
+  }
+
+  /** 死亡状态：灰化躺倒，停止自主行动；复活后恢复 */
+  setDead(v: boolean) {
+    if (this.dead === v) return;
+    this.dead = v;
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
+    if (v) {
+      this.setState("sleep");
+      this.zzz.setVisible(false);
+      this.cat.setTint(0x888888);
+      this.currentActivity = "（死亡）";
+      this.hideBubble();
+    } else {
+      this.cat.clearTint();
+      this.setState("sit");
+      this.showBubble("呼……我活过来了！");
+      this.scheduleNextState(4000);
+    }
+  }
+
+  lureTo(x: number, y: number) {
+    if (this.busyChatting || this.busyActivity || this.dead) return;
+    const tx = Phaser.Math.Clamp(x, 95, W - 95);
+    const ty = Phaser.Math.Clamp(y, 430, H - 44);
+    this.showLureToy(tx, ty);
+    this.walkToPoint(tx, ty, () => {
+      this.setState("play");
+      this.currentActivity = "追着逗猫棒玩";
+      this.showBubble("逮到你啦～");
+      this.onLureComplete?.();
+      this.fadeAndDestroy(this.lureToy, 2200);
+      this.lureToy = undefined;
+    });
+  }
+
+  feedTreat(item = "小鱼干") {
+    if (this.busyChatting || this.busyActivity || this.dead) return;
+    const dir = this.cat.x < W / 2 ? 1 : -1;
+    const tx = Phaser.Math.Clamp(this.cat.x + dir * 115, 110, W - 110);
+    const ty = Phaser.Math.Clamp(this.cat.y + 28, 455, H - 50);
+    this.showSnack(tx, ty);
+    this.walkToPoint(tx, ty, () => {
+      this.setState("eat");
+      this.currentActivity = `吃${item}`;
+      this.showBubble(`啊呜，${item}好香！`);
+      this.onFeedComplete?.();
+      this.fadeAndDestroy(this.snack, 2600);
+      this.snack = undefined;
+    });
+  }
+
+  /** 使用非食物类物品的表现：洗澡/吃药 */
+  useItem(kind: "commodity" | "medicine", item: string) {
+    if (this.busyChatting) return;
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
+    if (kind === "commodity") {
+      this.setState("eat");
+      this.currentActivity = "洗澡澡";
+      this.showBubble(`用${item}洗得香喷喷～`);
+    } else {
+      this.setState("sit");
+      this.currentActivity = "乖乖吃药";
+      this.showBubble(`吃了${item}，感觉好多了……`);
+    }
+    this.scheduleNextState(Phaser.Math.Between(8000, 14000));
+  }
+
   private setHovered(v: boolean) {
-    if (this.hovered === v || this.busyChatting) return;
+    if (this.hovered === v || this.busyChatting || this.busyActivity || this.dead) return;
     this.hovered = v;
     if (v) {
       this.stateTimer?.remove();
@@ -150,29 +288,13 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private redrawCloud() {
+    // 原版骨头形提示框（tip/normal/14.svg）：文字居中显示在骨头中段
     const b = this.bubbleText.getBounds();
-    const w = Math.max(70, b.width + 40);
-    const h = Math.max(46, b.height + 30);
-    const g = this.bubble.getAt(0) as Phaser.GameObjects.Graphics;
-    g.clear();
-    g.fillStyle(0xfffdf7, 0.96);
-    g.lineStyle(2.5, 0xd9bda0, 1);
-    // 云朵：主体圆角矩形 + 上下边缘一圈鼓包
-    const r = h / 2;
-    g.fillRoundedRect(-w / 2, -h, w, h, r);
-    g.strokeRoundedRect(-w / 2, -h, w, h, r);
-    const bumps = Math.max(3, Math.floor(w / 34));
-    for (let k = 0; k < bumps; k++) {
-      const bx = -w / 2 + (w / (bumps - 1 || 1)) * k;
-      g.fillCircle(bx, -h, 10 + (k % 2) * 4);
-      g.fillCircle(bx, 0, 9 + ((k + 1) % 2) * 4);
-    }
-    g.lineStyle(0, 0, 0);
-    // 尾巴小圆圈
-    g.fillStyle(0xfffdf7, 0.95);
-    g.fillCircle(-6, 14, 7);
-    g.fillCircle(4, 26, 4.5);
-    this.bubbleText.setPosition(0, -h / 2);
+    const img = this.bubble.getAt(0) as Phaser.GameObjects.Image;
+    const w = Math.max(170, b.width + 110);
+    const h = Math.max(120, b.height + 96);
+    img.setDisplaySize(w, h).setPosition(0, -h / 2);
+    this.bubbleText.setPosition(0, -h / 2 - 4);
   }
 
   private createDust() {
@@ -197,41 +319,68 @@ export class RoomScene extends Phaser.Scene {
 
   private createCat() {
     this.shadow = this.add.ellipse(430, 470, 120, 26, 0x8a6a4c, 0.25);
-    this.cat = this.add.image(430, 470, "cat_sit").setScale(CAT_SCALE).setOrigin(0.5, 0.88);
+    this.cat = this.add.sprite(430, 470, "cat_sit").setOrigin(0.5, 0.97);
+    this.applyAnim("sit");
     this.zzz = this.add
       .text(0, 0, "z Z z", { fontSize: "20px", color: "#8fa8c9", fontStyle: "bold" })
       .setVisible(false)
       .setDepth(4);
-    this.startBreathing();
   }
 
-  private startBreathing() {
-    this.breathTween?.stop();
-    this.breathTween = this.tweens.add({
-      targets: this.cat,
-      scaleY: { from: CAT_SCALE, to: CAT_SCALE * 1.035 },
-      duration: this.state === "sleep" ? 1600 : 950,
-      yoyo: true,
-      repeat: -1,
-      ease: "sine.inout",
-    });
+  private applyAnim(name: string) {
+    const flip = this.cat.flipX;
+    this.cat.setScale(ANIMS[name].scale);
+    this.cat.setFlipX(flip);
+    this.cat.play(name, true);
   }
 
-  private blink() {
-    if (this.state !== "sit" && this.state !== "idle" && this.state !== "eat") return;
-    this.cat.setTexture("cat_sit_blink");
-    this.time.delayedCall(160, () => {
-      if (this.state === "sit" || this.state === "idle" || this.state === "eat") {
-        this.cat.setTexture("cat_sit");
-      }
+  private showLureToy(x: number, y: number) {
+    this.lureToy?.destroy();
+    const g = this.add.graphics();
+    g.lineStyle(4, 0xb9895f, 0.95);
+    g.lineBetween(-24, -46, -2, -10);
+    g.lineStyle(2, 0xffd3de, 1);
+    g.lineBetween(-2, -10, 8, -3);
+    g.fillStyle(0xff7da8, 1);
+    g.fillEllipse(13, 0, 22, 10);
+    g.fillStyle(0xffd36b, 1);
+    g.fillEllipse(4, 8, 18, 9);
+    g.fillStyle(0x7ac9a2, 1);
+    g.fillCircle(0, 0, 4);
+    this.lureToy = this.add.container(x, y, [g]).setDepth(6);
+    this.tweens.add({ targets: this.lureToy, angle: 10, y: y - 6, yoyo: true, repeat: -1, duration: 420, ease: "sine.inout" });
+  }
+
+  private showSnack(x: number, y: number) {
+    this.snack?.destroy();
+    const g = this.add.graphics();
+    g.fillStyle(0xe59d45, 1);
+    g.fillEllipse(0, 0, 30, 13);
+    g.fillTriangle(-13, 0, -28, -9, -28, 9);
+    g.fillStyle(0xffd98f, 1);
+    g.fillCircle(7, -1, 3);
+    g.fillStyle(0x5c4a3d, 1);
+    g.fillCircle(10, -2, 1.5);
+    this.snack = this.add.container(x, y - 8, [g]).setDepth(4);
+    this.tweens.add({ targets: this.snack, y: y - 14, yoyo: true, repeat: -1, duration: 720, ease: "sine.inout" });
+  }
+
+  private fadeAndDestroy(item: Phaser.GameObjects.Container | undefined, delay: number) {
+    if (!item) return;
+    this.tweens.add({
+      targets: item,
+      alpha: 0,
+      duration: 500,
+      delay,
+      onComplete: () => item.destroy(),
     });
   }
 
   private createBubble() {
-    const g = this.add.graphics();
+    const g = this.add.image(0, 0, "bone_tip");
     this.bubbleText = this.add
       .text(0, 0, "", {
-        fontSize: "15px",
+        fontSize: "14px",
         color: "#5c4a3d",
         wordWrap: { width: 250, useAdvancedWrap: true },
         align: "left",
@@ -257,26 +406,38 @@ export class RoomScene extends Phaser.Scene {
   private scheduleNextState(delay: number) {
     this.stateTimer?.remove();
     this.stateTimer = this.time.delayedCall(delay, () => {
-      if (this.busyChatting || this.hovered) return;
-      const target = Phaser.Utils.Array.GetRandom(this.roomProps());
+      if (this.busyChatting || this.busyActivity || this.hovered || this.dead) return;
+      // 心情低落时更想窝着/发呆
+      const props = this.mood < 30
+        ? this.roomProps().filter((p) => p.state === "sleep" || p.state === "idle" || p.state === "sit")
+        : this.roomProps();
+      const target = Phaser.Utils.Array.GetRandom(props);
       this.walkTo(target);
     });
   }
 
   private walkTo(prop: Prop) {
+    this.walkToPoint(prop.x, prop.y, () => {
+      this.setState(prop.state);
+      this.currentActivity = prop.activity;
+    });
+  }
+
+  private walkToPoint(x: number, y: number, onArrive: () => void) {
+    this.stateTimer?.remove();
+    this.walkTween?.stop();
     this.setState("walk");
-    const dist = Phaser.Math.Distance.Between(this.cat.x, this.cat.y, prop.x, prop.y);
-    this.cat.setFlipX(prop.x < this.cat.x); // walk 贴图朝右
+    const dist = Phaser.Math.Distance.Between(this.cat.x, this.cat.y, x, y);
+    this.cat.setFlipX(x < this.cat.x); // walk 贴图朝右
     this.walkTween = this.tweens.add({
       targets: [this.cat, this.shadow],
-      x: prop.x,
-      y: prop.y,
+      x,
+      y,
       duration: Math.max(900, dist * 11),
       ease: "sine.inout",
       onComplete: () => {
         this.cat.setFlipX(false);
-        this.setState(prop.state);
-        this.currentActivity = prop.activity;
+        onArrive();
         this.scheduleNextState(Phaser.Math.Between(10000, 22000));
       },
     });
@@ -286,14 +447,13 @@ export class RoomScene extends Phaser.Scene {
 
   private setState(s: CatState) {
     this.state = s;
-    this.cat.setTexture(STATE_TEXTURE[s]);
+    this.applyAnim(STATE_ANIM[s]);
     this.zzz.setVisible(s === "sleep");
     if (s === "walk") this.currentActivity = "在房间里踱步";
-    this.startBreathing();
   }
 
   private async doAmbient() {
-    if (this.busyChatting || this.bubble.visible) return;
+    if (this.busyChatting || this.bubble.visible || this.dead) return;
     try {
       const r = await ambient(this.currentActivity);
       if (!this.busyChatting) this.showBubble(r.text);

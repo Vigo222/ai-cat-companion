@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>小凡的房间</title>
+  <title>冯二喵的房间</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #2b2530; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
     #game { display: flex; justify-content: center; align-items: center; height: 100vh; }
+    button { font-family: inherit; }
 
     #login {
       position: fixed; inset: 0; background: linear-gradient(160deg, #ffe9d6, #ffd6e0);
@@ -66,15 +67,290 @@
       75% { opacity: 1; transform: translate(-50%, -34px); }
       100% { opacity: 0; transform: translate(-50%, -56px); }
     }
+
+    /* ===== 原版宠物状态小窗（stateInfo：ditu 九宫格卡片 + 半透明渐变面板）===== */
+    #statePanel {
+      position: fixed; right: 18px; top: 18px; width: 245px; z-index: 12; display: none;
+      color: #042b4b; font-size: 12px; font-weight: 500; line-height: 20px; user-select: none;
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,.35));
+    }
+    #statePanel.show { display: block; }
+    #spBg { position: absolute; inset: 0; display: flex; flex-direction: column; z-index: 0; }
+    #spBg .bgRow { display: flex; }
+    #spBg .bh { height: 101px; }
+    #spBg .bh .l { width: 42px; background: url("/qqpet/state/ditu01.png") no-repeat; }
+    #spBg .bh .c { flex: 1; background: url("/qqpet/state/ditu02.png") repeat-x; }
+    #spBg .bh .r { width: 83px; background: url("/qqpet/state/ditu03.png") no-repeat; }
+    #spBg .bm { flex: 1; }
+    #spBg .bm .l { width: 32px; background: url("/qqpet/state/ditu04.png") repeat-y; }
+    #spBg .bm .c { flex: 1; background: url("/qqpet/state/ditu05.png") repeat; }
+    #spBg .bm .r { width: 32px; background: url("/qqpet/state/ditu06.png") repeat-y; }
+    #spBg .bf { height: 85px; }
+    #spBg .bf .l { width: 32px; background: url("/qqpet/state/ditu07.png") no-repeat; }
+    #spBg .bf .c { flex: 1; background: url("/qqpet/state/ditu08.png") repeat-x; }
+    #spBg .bf .r { width: 32px; background: url("/qqpet/state/ditu09.png") no-repeat; }
+    #spContent {
+      position: relative; z-index: 1; margin: 10px 12px 14px; display: flex; flex-direction: column;
+      background: linear-gradient(to top, rgba(237, 247, 255, 0.8), rgba(253, 255, 255, 0.8));
+      border-radius: 6px;
+    }
+    #spContent .head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 3px 5px 0px; border-bottom: 1px dotted rgba(0, 0, 0, 0.5);
+    }
+    .petFile {
+      height: 23px; width: 70px; cursor: pointer;
+      background: url("/qqpet/state/00.png") no-repeat; background-size: 100% 100%;
+    }
+    .petFile:hover { background-image: url("/qqpet/state/01.png"); position: relative; top: 1px; }
+    .petFile:active { background-image: url("/qqpet/state/02.png"); position: relative; top: 1px; }
+    #spClose {
+      height: 17px; width: 17px; cursor: pointer; position: relative; top: -3px;
+      background: url("/qqpet/state/close_normal.png") no-repeat; background-size: 100% 100%;
+    }
+    #spClose:hover { background-image: url("/qqpet/state/close_click.png"); top: -2px; }
+    #spClose:active { background-image: url("/qqpet/state/close_over.png"); top: 1px; }
+    #spContent .main { flex: 1; padding: 0 8px; }
+    .onceInfo { width: 100%; display: flex; align-items: center; }
+    .onceInfoLine { padding: 0 8px; }
+    .onceInfo .label { flex: none; }
+    .onceInfo .value { color: #042b4b; }
+    .bones { display: flex; align-items: center; margin-left: 5px; height: 100%; }
+    .bones img { width: 8px; }
+    .valueLine { flex: 1; position: relative; height: 14px; display: flex; align-items: center; }
+    .background_line { display: flex; height: 12px; min-width: 10px; transition: width .3s; }
+    .background_line .b_left, .background_line .b_right { flex: none; width: 5px; background-size: 100% 100%; background-repeat: no-repeat; }
+    .background_line .b_center { flex: 1; overflow: hidden; }
+    .background_line .b_c_back { width: 100%; height: 100%; background-repeat: repeat-x; background-size: auto 100%; }
+    .v_l_value { position: absolute; right: 0; top: -3px; font-size: 12px; color: #042b4b; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+    #spContent .foot {
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px dotted rgba(0, 0, 0, 0.5); padding: 5px 8px 4px;
+    }
+    .sweetHeart { height: 20px; width: 65px; background-repeat: no-repeat; background-size: contain; }
+    .spSick { color: #d9534f; font-weight: bold; }
+    .spDead { color: #444; font-weight: bold; }
+
+    /* ===== 原版 control 工具栏菜单（圆形图标 + 悬停展开二级子菜单）===== */
+    #petMenu {
+      --iconSize: 40px; --iconBoxSize: 50px; --childWidth: 110px; --childheight: 30px;
+      --childheightIn: 5px; --transTime: 0.3s;
+      position: fixed; z-index: 14; display: none; gap: 20px; font-size: 12px;
+    }
+    #petMenu.show { display: flex; }
+    .m_head {
+      position: relative; border-radius: 50%; width: var(--iconBoxSize); height: var(--iconBoxSize);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .m_h_name {
+      position: absolute; top: -2px; left: 50%; padding: 2px 5px;
+      background: url("/qqpet/control/bk/12.svg") no-repeat; background-size: 100% 100%;
+      color: #fff; transform: translateY(-100%) translateX(-50%); text-align: center;
+      white-space: nowrap; border-radius: 10px; display: none; font-size: 10px;
+    }
+    .m_head:hover .m_h_name { display: inline-block; }
+    .m_h_i_back {
+      width: var(--iconSize); height: var(--iconSize); overflow: hidden; transition: all var(--transTime);
+      position: relative; display: flex; align-items: center; justify-content: center;
+    }
+    .m_head:hover .m_h_i_back { width: var(--iconBoxSize); height: var(--iconBoxSize); }
+    .m_h_i_bk_6 { width: 100%; height: 100%; opacity: 0; transition: all var(--transTime); position: absolute; left: 0; top: 0; }
+    .m_head:hover .m_h_i_bk_6 { opacity: 1; }
+    .m_h_img {
+      width: var(--iconSize); height: var(--iconSize); border-radius: 50%; position: relative;
+      background-image: url("/qqpet/control/bk/2.svg"); transition: all var(--transTime);
+      background-size: 100% 100%; background-repeat: no-repeat;
+    }
+    .m_head:hover .m_h_img { transform: rotate(45deg); background-image: url("/qqpet/control/bk/8.svg"); }
+    .m_children {
+      max-height: 0px; overflow: hidden; width: var(--childWidth); position: absolute;
+      left: 0; top: var(--iconBoxSize); transition: all var(--transTime);
+    }
+    .m_head:hover .m_children { max-height: 240px; }
+    .m_c_once { white-space: nowrap; width: var(--childWidth); height: var(--childheight); position: relative; padding: 12px 0; box-sizing: content-box; }
+    .m_c_once.normal::before {
+      content: ""; display: inline-block; position: absolute; left: 0; top: calc(-50% + 2.5px);
+      height: 100%; width: 1px; background-color: #826b54;
+    }
+    .m_c_o_bk {
+      width: var(--childWidth); height: calc(var(--childheight) - var(--childheightIn));
+      padding-left: 5px; position: relative; display: flex; align-items: center; cursor: pointer;
+    }
+    .m_c_o_bk:hover .m_c_o_b_point, .m_c_o_bk:hover .m_c_o_b_round { background-color: #5a4a3a; }
+    .m_c_o_b_point { background-color: #826b54; width: 5px; height: 5px; border-radius: 50%; margin-left: 5px; flex: none; }
+    .m_c_o_b_round {
+      background-color: #826b54; height: calc(var(--childheight) - var(--childheightIn));
+      width: calc(var(--childheight) - var(--childheightIn)); border-radius: 50%; margin-left: 5px; z-index: 2; flex: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .m_c_o_b_round img { width: 72%; height: 72%; border-radius: 50%; }
+    .m_c_o_b_piece {
+      background-color: rgba(95, 76, 57, 0.5); height: calc(var(--childheight) - var(--childheightIn));
+      position: relative; left: calc(var(--childheight) - var(--childheight) * 1.5);
+      padding: 3px 5px; padding-left: calc(var(--childheight) / 2); border-radius: calc(var(--childheight) / 2);
+      color: #fff; z-index: 1; box-sizing: border-box; display: flex; align-items: center;
+    }
+    .m_c_once.disabledItem .m_c_o_b_round, .m_c_once.disabledItem .m_c_o_b_point { opacity: .45; }
+    .m_c_once.disabledItem .m_c_o_b_piece { opacity: .55; }
+
+    /* ===== 原版商城窗口 ===== */
+    #shopWin {
+      position: fixed; left: 50%; top: 50%; width: 800px; height: 600px; z-index: 15; display: none;
+      background: url("/qqpet/store/BG.png") no-repeat; background-size: 100% 100%;
+      color: #6b4b2a; user-select: none;
+      transform: translate(-50%, -50%) scale(var(--winScale, 1));
+    }
+    #shopWin.show { display: block; }
+    #shopWin .title {
+      position: absolute; left: 0; right: 0; top: -34px; text-align: center;
+      color: #ffe6ad; font-size: 20px; font-weight: bold; text-shadow: 0 2px 3px rgba(0,0,0,.5);
+    }
+    .winClose { position: absolute; right: 10px; top: 8px; width: 22px; height: 22px; cursor: pointer; z-index: 3; }
+    #shopPreview {
+      position: absolute; left: 26px; top: 22px; width: 300px; height: 222px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    }
+    #shopPreview img { width: 86px; height: 86px; image-rendering: pixelated; }
+    #shopPreview .nm { font-size: 16px; font-weight: bold; margin-top: 6px; }
+    #shopPreview .ds { font-size: 12px; color: #937149; margin-top: 4px; max-width: 250px; }
+    #shopDetail {
+      position: absolute; left: 22px; top: 296px; width: 306px; height: 236px;
+      padding: 12px 14px; font-size: 13px; color: #4c3316; overflow: hidden;
+    }
+    #shopDetail .row { margin-top: 8px; }
+    #shopDetail .price { color: #b3541e; font-weight: bold; }
+    #shopBuyBtn {
+      margin-top: 14px; width: 100%; padding: 9px 0; border: none; border-radius: 10px; cursor: pointer;
+      font-size: 15px; font-weight: bold; color: #fff;
+      background: linear-gradient(#ffb648, #ef8f1d); box-shadow: 0 3px 0 #b96a10;
+    }
+    #shopBuyBtn:disabled { opacity: .55; cursor: default; }
+    #shopYb { position: absolute; left: 76px; top: 561px; width: 240px; font-size: 14px; font-weight: bold; color: #7d4d0b; }
+    #shopTabs { position: absolute; left: 356px; top: 14px; display: flex; gap: 4px; z-index: 2; }
+    .shopTab {
+      width: 81px; height: 27px; line-height: 25px; text-align: center; cursor: pointer;
+      font-size: 13px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.4);
+      background: url("/qqpet/store/Items_Tag.png") no-repeat; background-size: 100% 100%;
+    }
+    .shopTab.sel { background-image: url("/qqpet/store/Items_Tag_Selected.png"); color: #6b3d05; text-shadow: none; }
+    #shopGrid {
+      position: absolute; left: 352px; top: 48px; width: 436px; height: 536px;
+      overflow-y: auto; display: grid; grid-template-columns: repeat(2, 159px);
+      gap: 10px 14px; align-content: start; padding: 6px 10px;
+    }
+    #shopGrid::-webkit-scrollbar { width: 8px; }
+    #shopGrid::-webkit-scrollbar-thumb { background: #a0824f; border-radius: 4px; }
+    .goodCard {
+      position: relative; width: 159px; height: 78px; cursor: pointer;
+      background: url("/qqpet/store/Card_Items.png") no-repeat; background-size: 100% 100%;
+    }
+    .goodCard.sel { outline: 2px solid #ffd35e; border-radius: 8px; }
+    .goodCard img.gi { position: absolute; left: 9px; top: 14px; width: 48px; height: 48px; }
+    .goodCard .gn { position: absolute; left: 66px; top: 13px; width: 88px; font-size: 12px; font-weight: bold; color: #5c3a12;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .goodCard .gp { position: absolute; left: 66px; top: 34px; font-size: 12px; color: #b3541e; font-weight: bold; }
+    .goodCard button {
+      position: absolute; right: 8px; bottom: 7px; padding: 2px 10px; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 11px; color: #fff; background: linear-gradient(#ffb648, #ef8f1d);
+    }
+    .goodCard .badge { position: absolute; right: -6px; top: -10px; width: 40px; pointer-events: none; }
+
+    /* ===== 格子背包 ===== */
+    #bagWin {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 15; display: none;
+      width: 396px; background: #fdf6e3; border: 3px solid #b98a52; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.5); color: #6b4b2a;
+    }
+    #bagWin.show { display: block; }
+    #bagWin .head {
+      height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+      background: linear-gradient(#f7b733, #e08e1b); border-radius: 8px 8px 0 0;
+      color: #fff; font-weight: bold; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+    #bagWin .head img { width: 18px; height: 18px; cursor: pointer; }
+    #bagTabs { display: flex; gap: 6px; padding: 8px 10px 0; }
+    .bagTab {
+      padding: 3px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px;
+      background: #e7d3ac; color: #8a6a42; border: 1px solid #d0ac74; border-bottom: none;
+    }
+    .bagTab.sel { background: #fff3d8; color: #6b3d05; font-weight: bold; }
+    #bagGrid {
+      margin: 0 10px 8px; padding: 10px; min-height: 196px; max-height: 260px; overflow-y: auto;
+      background: #fff3d8; border: 1px solid #d0ac74; border-radius: 0 8px 8px 8px;
+      display: grid; grid-template-columns: repeat(6, 56px); gap: 6px; align-content: start;
+    }
+    .bagCell {
+      position: relative; width: 56px; height: 56px; border-radius: 8px; cursor: pointer;
+      background: #fffaf0; border: 1px solid #d8b98a; display: flex; align-items: center; justify-content: center;
+    }
+    .bagCell:hover { border-color: #ef8f1d; box-shadow: 0 0 6px rgba(239, 143, 29, .6); }
+    .bagCell.sel { border: 2px solid #ef8f1d; }
+    .bagCell img { width: 40px; height: 40px; }
+    .bagCell .ct {
+      position: absolute; right: 1px; bottom: 1px; min-width: 16px; height: 16px; line-height: 16px;
+      text-align: center; border-radius: 8px; font-size: 10px; color: #fff; background: #e0821c; padding: 0 3px;
+    }
+    #bagInfo { display: flex; align-items: center; gap: 10px; padding: 0 12px 12px; font-size: 12px; min-height: 40px; }
+    #bagInfo .desc { flex: 1; color: #8a6a42; }
+    #bagUseBtn {
+      padding: 6px 22px; border: none; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
+      color: #fff; background: linear-gradient(#ffb648, #ef8f1d); box-shadow: 0 2px 0 #b96a10;
+    }
+    #bagUseBtn:disabled { opacity: .5; cursor: default; }
+    .bagEmpty { grid-column: 1 / -1; text-align: center; color: #b09468; padding: 30px 0; font-size: 12px; }
+
+    /* ===== 打工/学习窗口 ===== */
+    #jobWin {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 15; display: none;
+      width: 470px; background: #fdf6e3; border: 3px solid #b98a52; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.5); color: #6b4b2a;
+    }
+    #jobWin.show { display: block; }
+    #jobWin .head {
+      height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+      background: linear-gradient(#f7b733, #e08e1b); border-radius: 8px 8px 0 0;
+      color: #fff; font-weight: bold; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+    #jobWin .head .hicon { width: 20px; height: 20px; vertical-align: -4px; margin-right: 6px; }
+    #jobWin .head > img { width: 18px; height: 18px; cursor: pointer; }
+    #jobList { max-height: 420px; overflow-y: auto; padding: 10px 12px 12px; }
+    #jobList::-webkit-scrollbar { width: 8px; }
+    #jobList::-webkit-scrollbar-thumb { background: #a0824f; border-radius: 4px; }
+    .jobRow {
+      position: relative; background: #fff3d8; border: 1px solid #d0ac74; border-radius: 8px;
+      padding: 8px 86px 8px 12px; margin-bottom: 8px;
+    }
+    .jobRow.nope { opacity: .62; }
+    .jobRow .jn { font-size: 14px; font-weight: bold; color: #5c3a12; }
+    .jobRow .jd, .jobRow .jr { font-size: 11px; color: #8a6a42; margin-top: 2px; }
+    .jobRow button {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      padding: 6px 16px; border: none; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
+      color: #fff; background: linear-gradient(#ffb648, #ef8f1d); box-shadow: 0 2px 0 #b96a10;
+    }
+    .jobRow button:disabled { opacity: .5; cursor: default; }
+
+    /* 活动进行中 HUD（原版 active 徽标动画 + 倒计时 + 返回按钮） */
+    #actHud {
+      position: fixed; left: 18px; top: 18px; z-index: 13; display: none; align-items: center; gap: 8px;
+      padding: 8px 12px; background: rgba(253, 246, 227, .95); border: 2px solid #b98a52; border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.35); color: #6b4b2a;
+    }
+    #actHud.show { display: flex; }
+    #actHud #actBadge { width: 34px; height: 34px; }
+    #actHud .actInfo { display: flex; flex-direction: column; }
+    #actHud #actName { font-size: 13px; font-weight: bold; }
+    #actHud #actTime { font-size: 12px; color: #b3541e; font-weight: bold; font-variant-numeric: tabular-nums; }
+    #actHud #actCancel { width: 30px; height: 30px; cursor: pointer; margin-left: 4px; }
   </style>
 </head>
 <body>
   <div id="login">
-    <h1>🐾 小凡的房间</h1>
+    <h1>🐾 冯二喵的房间</h1>
     <p>输入口令，选择你是谁</p>
     <input id="codeInput" type="password" placeholder="口令" />
     <div class="who">
-      <button data-who="凡">我是 凡</button>
+      <button data-who="冯二狗">我是 冯二狗</button>
       <button data-who="汝道">我是 汝道</button>
     </div>
     <div id="loginErr"></div>
@@ -84,8 +360,14 @@
   <div id="game"></div>
 
   <div id="floatMsg"></div>
+  <div id="statePanel"></div>
+  <div id="petMenu"></div>
+  <div id="shopWin"></div>
+  <div id="bagWin"></div>
+  <div id="jobWin"></div>
+  <div id="actHud"></div>
   <div id="chatBar">
-    <input id="chatInput" placeholder="和小凡说点什么…" />
+    <input id="chatInput" placeholder="和冯二喵说点什么…" />
     <button id="sendBtn">🐾 发送</button>
   </div>
 
