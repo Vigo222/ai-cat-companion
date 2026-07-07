@@ -1,6 +1,6 @@
 import { chat, login, petActivityCancel, petBuy, petCare, petJobs, petShop, petState, petStudy, petUse, petWork, session } from "./api";
 import type { PetState, ShopItem, StudyCourse, WorkJob } from "./api";
-import { createGame, RoomScene, W, H } from "./RoomScene";
+import { createGame, RoomScene } from "./RoomScene";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -121,11 +121,10 @@ function setupPetMenu(scene: RoomScene) {
 
   scene.onCatClick = (cx, cy) => {
     if (menu.classList.contains("show")) { closeMenu(); return; }
-    const canvas = document.querySelector<HTMLCanvasElement>("#game canvas");
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const sx = rect.left + (cx / W) * rect.width;
-    const sy = rect.top + (cy / H) * rect.height;
+    const sm = scene.game.scale;
+    const b = sm.canvasBounds;
+    const sx = b.x - window.scrollX + cx / sm.displayScale.x;
+    const sy = b.y - window.scrollY + cy / sm.displayScale.y;
     menu.innerHTML = "";
     MENU.forEach((g) => {
       const head = document.createElement("div");

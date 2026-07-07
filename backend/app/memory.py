@@ -505,6 +505,23 @@ def recent_turns(db, player, n=10):
     return list(reversed(rows))
 
 
+def turns_page(db, limit=100, before_id=None):
+    if before_id:
+        rows = db.execute(
+            "SELECT id, ts, player, role, text FROM chat_turns WHERE id<? ORDER BY id DESC LIMIT ?",
+            (before_id, limit),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id, ts, player, role, text FROM chat_turns ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [
+        {"id": r[0], "ts": r[1], "player": r[2], "role": r[3], "text": r[4]}
+        for r in reversed(rows)
+    ]
+
+
 def unarchived_turns(db):
     return db.execute(
         "SELECT id, ts, player, role, text FROM chat_turns WHERE archived=0 ORDER BY id"

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from datetime import datetime
@@ -9,10 +10,11 @@ load_dotenv()
 from collections import defaultdict, deque  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request  # noqa: E402
+from fastapi.responses import HTMLResponse  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-from . import memory  # noqa: E402
+from . import backup, memory  # noqa: E402
 from .llm import achat, aembed, embed  # noqa: E402
 
 ACCESS_CODE = os.environ.get("ACCESS_CODE", "meow2024")
@@ -26,6 +28,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _startup():
+    await backup.restore_if_missing()
+    asyncio.create_task(backup.loop())
 
 
 def load_persona():
@@ -279,6 +287,105 @@ REFLECT_PROMPT = """下面是猫咪（「我」的化身）最近在游戏里和
 
 对话记录：
 {log}"""
+
+
+class LogsReq(BaseModel):
+    code: str
+    before: int | None = None
+    limit: int = 100
+
+
+@app.post("/api/logs/data")
+async def logs_data(req: LogsReq):
+    check(req.code)
+    db = memory.get_db()
+    turns = memory.turns_page(db, limit=min(max(req.limit, 1), 500), before_id=req.before)
+    db.close()
+    return {"turns": turns}
+
+
+LOGS_HTML = """<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>聊天记录</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#2b2530; color:#eee; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  #wrap { max-width:720px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; margin:12px 0; color:#f4c987; }
+  #auth { margin-top:30vh; text-align:center; }
+  #auth input { padding:10px 14px; border-radius:8px; border:1px solid #666; background:#1e1a22; color:#eee; }
+  #auth button, #more { padding:10px 18px; border-radius:8px; border:none; background:#f4c987; color:#402; cursor:pointer; margin-left:8px; }
+  .day { text-align:center; color:#998; font-size:12px; margin:14px 0 6px; }
+  .msg { display:flex; margin:6px 0; }
+  .msg.user { justify-content:flex-end; }
+  .b { max-width:75%; padding:8px 12px; border-radius:12px; white-space:pre-wrap; word-break:break-word; font-size:14px; line-height:1.5; }
+  .msg.cat .b { background:#3a3342; border-top-left-radius:2px; }
+  .msg.user .b { background:#5b4632; border-top-right-radius:2px; }
+  .meta { font-size:11px; color:#aa9; margin:0 6px 2px; align-self:flex-end; }
+  #more { display:block; margin:16px auto; }
+  .err { color:#e88; text-align:center; margin-top:10px; }
+</style></head><body><div id="wrap">
+<div id="auth"><h1>🐾 聊天记录</h1>
+  <input id="code" type="password" placeholder="口令" onkeydown="if(event.key==='Enter')go()"/>
+  <button onclick="go()">进入</button><div id="err" class="err"></div></div>
+<div id="list" style="display:none"><h1>🐾 聊天记录</h1><button id="more" onclick="loadMore()">加载更早的记录</button><div id="msgs"></div></div>
+</div><script>
+let code = sessionStorage.getItem("logcode") || "";
+let firstId = null;
+async function fetchTurns(before) {
+  const r = await fetch("/api/logs/data", { method:"POST", headers:{"content-type":"application/json"},
+    body: JSON.stringify({ code, before, limit: 100 }) });
+  if (!r.ok) throw new Error((await r.json()).detail || r.status);
+  return (await r.json()).turns;
+}
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+function render(turns, prepend) {
+  const msgs = document.getElementById("msgs");
+  let lastDay = "";
+  const html = turns.map(t => {
+    const dt = new Date(t.ts*1000);
+    const day = dt.toLocaleDateString("zh-CN");
+    const time = dt.toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
+    let s = "";
+    if (day !== lastDay) { s += '<div class="day">'+day+'</div>'; lastDay = day; }
+    const who = t.role === "user" ? esc(t.player) : "猫";
+    s += '<div class="msg '+(t.role==="user"?"user":"cat")+'">'
+      + (t.role==="user" ? '<span class="meta">'+time+'</span><div class="b">'+esc(t.text)+'</div>'
+                         : '<div class="b">'+esc(t.text)+'</div><span class="meta">'+who+" "+time+'</span>')
+      + '</div>';
+    return s;
+  }).join("");
+  if (prepend) msgs.insertAdjacentHTML("afterbegin", html);
+  else { msgs.insertAdjacentHTML("beforeend", html); window.scrollTo(0, document.body.scrollHeight); }
+}
+async function go() {
+  code = document.getElementById("code").value.trim() || code;
+  try {
+    const turns = await fetchTurns(null);
+    sessionStorage.setItem("logcode", code);
+    document.getElementById("auth").style.display = "none";
+    document.getElementById("list").style.display = "block";
+    firstId = turns.length ? turns[0].id : null;
+    if (!turns.length) document.getElementById("msgs").innerHTML = '<div class="day">还没有聊天记录</div>';
+    else render(turns, false);
+  } catch (e) { document.getElementById("err").textContent = "" + (e.message || e); }
+}
+async function loadMore() {
+  if (!firstId) return;
+  const turns = await fetchTurns(firstId);
+  if (!turns.length) { document.getElementById("more").textContent = "没有更早的了"; return; }
+  firstId = turns[0].id;
+  render(turns, true);
+}
+if (code) go();
+</script></body></html>"""
+
+
+@app.get("/logs")
+async def logs_page():
+    return HTMLResponse(LOGS_HTML)
 
 
 @app.post("/api/reflect")
